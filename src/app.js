@@ -10,6 +10,9 @@ const morgan = require("morgan");
 const db = require("./config/database");
 
 const authRoutes = require("./routers/auth.routes");
+const categoryRoutes = require("./routers/category.routes");
+const unitRoutes = require("./routers/unit.routes");
+const productRoutes = require("./routers/product.routes");
 
 const app = express();
 
@@ -19,8 +22,14 @@ app.use(helmet());
 app.use(morgan("dev"));
 app.use(express.json());
 
+// Pretty JSON
+app.set("json spaces", 2);
+
 //Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/units", unitRoutes);
+app.use("/api/products", productRoutes);
 
 //Test routes
 app.get("/", (req, res) => res.json({ message: "POS API is running" }));
