@@ -3,14 +3,19 @@ const { success, error } = require("../utils/response");
 
 const getAll = async (req, res) => {
     try {
+        // Admin เห็นทั้งหมด เรียง active ก่อน
+        // Staff/Customer เห็นแค่ active
+        const isAdmin = req.user.state === "Admin";
+        const whereClause = isAdmin ? "" : "WHERE p.is_active = true";
+
         // ดึงสินค้าที่ is_active = true พร้อม join หมวดหมู่
         const products = await db.query(`
             SELECT p.proid, p.barcode, p.proname, p.createdate, p.is_active, c.catid, c.catname
             FROM tbproducts p
             LEFT JOIN tbcategory c 
             ON p.catid = c.catid
-            WHERE p.is_active = true
-            ORDER BY p.proid
+            ${whereClause}
+            ORDER BY p.is_active DESC, p.proid ASC
         `);
 
         // ดึงหน่วย/ราคาทั้งหมด แล้วเอามาแมพกับสินค้าแต่ละตัว
@@ -36,13 +41,19 @@ const getAll = async (req, res) => {
 const getOne = async (req, res) => {
     try {
         const { id } = req.params;
+        const isAdmin = req.user.state === "Admin";
+
+        // Admin เห็นได้ทุกตัว, Staff/Customer เห็นแค่ active
+        const whereClause = isAdmin
+            ? "WHERE p.proid = $1"
+            : "WHERE p.proid = $1 AND p.is_active = true"
 
         const product = await db.query(`
             SELECT p.proid, p.barcode, p.proname, p.createdate, p.is_active, c.catid, c.catname
             FROM tbproducts p
             LEFT JOIN tbcategory c
             ON p.catid = c.catid
-            WHERE p.proid = $1
+            ${whereClause}
         `, [id]);
 
         if (product.rows.length === 0) {
@@ -78,10 +89,11 @@ const create = async (req, res) => {
 
         await client.query("BEGIN");   // เริ่ม transaction
 
+        // is_active = false เสมอ ต้องให้ Admin เปิดเองทีหลัง
         // 1. insert สินค้าหลัก
         const productResult = await client.query(`
-            INSERT INTO tbproducts (barcode, proname, catid, createdate)
-            VALUES ($1, $2, $3, CURRENT_DATE) RETURNING *`,
+            INSERT INTO tbproducts (barcode, proname, catid, createdate, is_active)
+            VALUES ($1, $2, $3, CURRENT_DATE, false) RETURNING *`,
             [barcode, proname, catid]
         );
         const newProduct = productResult.rows[0];
@@ -129,46 +141,56 @@ const update = async (req, res) => {
     const client = await db.connect();
     try {
         const { id } = req.params;
-        const { barcode, proname, catid, units } = req.body;
+        const { barcode, proname, catid, units, is_active } = req.body;
 
-        // เช็คว่าเคยขายแล้วหรือยัง
         const sold = await hasBeenSold(id);
+
+        await client.query('BEGIN');
+
+        let result;
+
         if (sold) {
-            return error(res, "This item cannot be modified because it has already been sold", 403);
-        }
+            // เคยขายแล้ว → แก้ได้แค่ is_active เท่านั้น
+            if (is_active === undefined) {
+                await client.query('ROLLBACK');
+                client.release();
+                return error(res, "This product already has a sales history; only the 'is_active' status can be modified", 403);
+            }
+            result = await client.query(
+                `UPDATE tbproducts SET is_active = $1 WHERE proid = $2 RETURNING *`,
+                [is_active, id]
+            );
+            } else {
+            // ยังไม่เคยขาย → แก้ได้ทุก field
+            result = await client.query(
+                `UPDATE tbproducts SET barcode=$1, proname=$2, catid=$3, is_active=$4
+                WHERE proid=$5 RETURNING *`,
+                [barcode, proname, catid, is_active, id]
+            );
 
-        await client.query("BEGIN");
-
-        const result = await client.query(
-            `UPDATE tbproducts
-            SET barcode = $1, proname = $2, catid = $3
-            WHERE proid = $4 RETURNING *`,
-            [barcode, proname, catid, id]
-        );
-        if (result.rows.length === 0) {
-            await client.query("ROLLBACK");
-            return error(res, "Product not found", 401);
-        }
-
-        // ถ้าส่ง units มา → ลบของเก่าทิ้งแล้วใส่ใหม่ทั้งหมด
-        if (units && units.length > 0) {
-            await client.query("DELETE FROM tbproduct_units WHERE proid = $1", [id]);
-            for (const u of units) {
-                await client.query(
-                    `INSERT INTO tbproduct_units (proid, uid, qty_base, imprice, saleprice)
-                    VALUES ($1, $2, $3, $4, $5)`,
-                    [id, u.uid, u.qty_base, u.imprice, u.saleprice]
-                );
+            if (units && units.length > 0) {
+                await client.query('DELETE FROM tbproduct_units WHERE proid = $1', [id]);
+                for (const u of units) {
+                    await client.query(
+                        `INSERT INTO tbproduct_units (proid, uid, qty_base, imprice, saleprice)
+                        VALUES ($1, $2, $3, $4, $5)`,
+                        [id, u.uid, u.qty_base, u.imprice, u.saleprice]
+                    );
+                }
             }
         }
 
-        await client.query("COMMIT");
-        return success(res, result.rows[0], "Update product successful");
-    } catch (err) {
-        await client.query("ROLLBACK");
-        if (err.code === "23505") {
-            return error(res, "This barcode already exists")
+        if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
+            client.release();
+            return error(res, 'Product not found', 404);
         }
+
+        await client.query('COMMIT');
+        return success(res, result.rows[0], 'Update product successful');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        if (err.code === '23505') return error(res, 'Barcode already exists', 409);
         return error(res, err.message);
     } finally {
         client.release();
