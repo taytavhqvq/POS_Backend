@@ -52,7 +52,7 @@ const getOne = async (req, res) => {
         const units = await db.query(`
             SELECT pu.conid, pu.uid, u.uname, pu.qty_base, pu.imprice, pu.saleprice
             FROM tbproduct_units pu
-            JOIN tbunit u
+            INNER JOIN tbunit u
             ON pu.uid = u.uid
             WHERE pu.proid = $1
         `, [id]);

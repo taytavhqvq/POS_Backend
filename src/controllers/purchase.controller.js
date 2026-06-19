@@ -1,0 +1,147 @@
+const db = require("../config/database");
+const { success, error } = require("../utils/response");
+
+const getAll = async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT p.*, s.comname AS supplier_name, u.username AS created_by
+            FROM tbpurchase p
+            INNER JOIN tbsupplier s ON p.supid = s.supid
+            INNER JOIN "user" u ON p.userid = u.userid
+            ORDER BY p.purchaseid DESC
+        `);
+        return success(res, result.rows);
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+
+const getOne = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const purchase = await db.query(`
+            SELECT p.*, s.comname AS supplier_name, u.username AS created_by
+            FROM tbpurchase p
+            INNER JOIN tbsupplier s ON p.supid = s.supid
+            INNER JOIN "user" u ON p.userid = u.userid
+            WHERE p.purchaseid = $1
+        `, [id]);
+
+        if (purchase.rows.length === 0) return error(res, "No purchase order found", 404);
+
+        const items = await db.query(`
+            SELECT pi.itemid, pi.proid, pr.proname, pi.uid, un.uname,
+                pi.pack_qty, pi.cost_price,
+                b.batchid, b.lot_name, b.initial_qty, b.remaining_qty, b.expiry_date
+                FROM tbpurchase_items pi
+                INNER JOIN tbproducts pr ON pi.proid = pr.proid
+                INNER JOIN tbunit un ON pi.uid = un.uid
+                LEFT JOIN tbbatch b ON b.purchaseid = pi.purchaseid AND b.proid = pi.proid
+                WHERE pi.purchaseid = $1
+        `, [id]);
+
+        return success(res, { ...purchase.rows[0], items: items.rows });
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+
+// body: { supid, note, items: [{ proid, uid, pack_qty, cost_price, lot_name, expiry_date }] }
+const create = async (req, res) => {
+    const client = await db.connect();
+    try {
+        const { supid, note, items } = req.body;
+
+        // validation พื้นฐาน
+        if (!supid) return error(res, "Please provide a supplier", 400);
+        if (!items || items.length === 0) return error(res, "Please specify at least one item", 400);
+
+        for (const item of items) {
+            if (!item.proid || !item.uid || !item.pack_qty || item.cost_price == null) {
+                return error(res, "The product information is incomplete (proid, uid, pack_qty, cost_price)", 400);
+            }
+            if (item.pack_qty <= 0) return error(res, "The quantity ordered must be greater than 0", 400);
+        }
+
+        await client.query("BEGIN");
+
+        // 1. สร้างใบสั่งซื้อหลัก
+        const purchaseResult = await client.query(`
+            INSERT INTO tbpurchase (supid, userid, purchasedate, note, status)
+            VALUES ($1, $2, CURRENT_DATE, $3, 'ຍັງບໍ່ໄດ້ຈ່າຍ') RETURNING *`,
+            [supid, req.user.userid, note || null]
+        );
+        const purchase = purchaseResult.rows[0];
+
+        // 2. วนทุกรายการสินค้าที่สั่ง
+        for (const item of items) {
+            const { proid, uid, pack_qty, cost_price, lot_name, expiry_date } = item;
+
+            // 2.1 หา qty_base ของหน่วยนี้ จาก tbproduct_units
+            const unitResult = await client.query(
+                `SELECT qty_base FROM tbproduct_units WHERE proid = $1 AND uid = $2`,
+                [proid, uid]
+            );
+            if (unitResult.rows.length === 0) {
+                throw new Error("No product unit information found for proid=${proid}, uid=${uid}. Please check tbproduct_units");
+            }
+            const qtyBase = unitResult.rows[0].qty_base;
+
+            // 2.2 คำนวณจำนวนเป็นหน่วยฐาน
+            const qtyInBase = pack_qty * qtyBase;
+
+            // 2.3 insert tbpurchase_items (เก็บตามหน่วยที่สั่งจริง)
+            await client.query(
+                `INSERT INTO tbpurchase_items (purchaseid, proid, uid, pack_qty, cost_price)
+                VALUES ($1, $2, $3, $4, $5)`,
+                [purchase.purchaseid, proid, uid, pack_qty, cost_price]
+            );
+
+            // 2.4 insert tbbatch (เก็บเป็นหน่วยฐานแล้ว)
+            await client.query(
+                `INSERT INTO tbbatch (purchaseid, proid, lot_name, initial_qty, remaining_qty, expiry_date)
+                VALUES ($1, $2, $3, $4, $4, $5)`,
+                [purchase.purchaseid, proid, lot_name || null, qtyInBase, expiry_date || null] 
+            );
+
+            // 2.5 update tbstock (บวกหน่วยฐานเข้า qty และ balance)
+            // ใช้ ON CONFLICT เผื่อ proid นี้ยังไม่มี record ใน tbstock (กรณีสินค้าเก่าที่สร้างไว้ก่อน Step 8 มี init stock อยู่แล้ว ปกติจะมี record อยู่)
+            await client.query(
+                `UPDATE tbstock SET qty = qty + $1, balance = balance + $1 WHERE proid = $2`,
+                [qtyInBase, proid]
+            );
+        }
+
+        await client.query("COMMIT");
+        return success(res, purchase, "Insert purchase order successful", 201)
+    } catch (err) {
+        await client.query("ROLLBACK");
+        return error(res, err.message);
+    } finally {
+        client.release();
+    }
+};
+
+// เปลี่ยนสถานะเป็น "จ่ายสำเร็จแล้ว
+const updateStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const check = await db.query("SELECT status FROM tbpurchase WHERE purchaseid = $1", [id]);
+        if (check.rows.length === 0) return error(res, "Purchase order not found", 404);
+        if (check.rows[0].status === 'ຈ່າຍສຳເລັດ') {
+            return error(res, "This purchase order has been successfully paid for", 400);
+        }
+
+        const result = await db.query(
+            `UPDATE tbpurchase SET status = 'ຈ່າຍສຳເລັດ' WHERE purchaseid = $1 RETURNING *`,
+            [id]
+        );
+        return success(res, result.rows[0], "Update the status to ຈ່າຍສຳເລັດ");
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+
+module.exports = { getAll, getOne, create, updateStatus };
