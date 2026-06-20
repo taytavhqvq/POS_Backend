@@ -86,40 +86,19 @@ const verify = async (req, res) => {
 
         await client.query("BEGIN");
 
-        // ดึงรายการสินค้าที่ยังไม่ตัด stock (batchid IS NULL)
-        const items = await client.query(
-            `SELECT * FROM tborder_items WHERE orderid = $1 AND batchid IS NULL`,
-            [orderid]
-        );
+        // ดึงรายการที่ยังไม่ตัด stock (online order ที่ยัง pending อยู่)
+        const items = await client.query(`
+            SELECT oi.proid, oi.uid, oi.qty, pu.qty_base
+            FROM tborder_items oi
+            JOIN tbproduct_units pu ON oi.proid = pu.proid AND oi.uid = pu.uid
+            WHERE oi.orderid = $1
+            `, [orderid]);
 
         try {
             for (const item of items.rows) {
-                // ตัด stock แบบ FIFO (เหมือน walk-in)
-                const deductions = await deductStockFIFO(client, item.proid, item.qty);
-
-                // ต้องมีอย่างน้อย 1 batch
-                if (!deductions.length) {
-                    throw new Error("No stock deduction generated");
-                }
-                
-                // กรณีตัดได้หลาย batch: อัปเดตแถวเดิมด้วย batch แรก แล้ว insert แถวเพิ่มสำหรับ batch ที่เหลือ
-                const [firstDeduction, ...restDeductions] = deductions;
-
-                await client.query(
-                    `UPDATE tborder_items SET batchid = $1, qty = $2 WHERE itemid = $3`,
-                    [firstDeduction.batchid, firstDeduction.qty, item.itemid]
-                );
-
-                for (const d of restDeductions) {
-                    await client.query(
-                        `INSERT INTO tborder_items (orderid, proid, batchid, qty)
-                        VALUES ($1, $2, $3, $4)`,
-                        [orderid, item.proid, d.batchid, d.qty]
-                    );
-                }
-
-                // ลด tbstock.qty
-                await client.query(`UPDATE tbstock SET qty = qty - $1 WHERE proid = $2`, [item.qty, item.proid]);
+                const qtyInBase = item.qty * item.qty_base;
+                await deductStockFIFO(client, item.proid, qtyInBase);
+                await client.query(`UPDATE tbstock SET qty = qty - $1 WHERE proid = $2`, [qtyInBase, item.proid]);
             }
         } catch (stockErr) {
             // สินค้าไม่พอ → rollback การตัด stock ทั้งหมด แล้วเปลี่ยนเป็น "ปฏิเสธ" อัตโนมัติ
