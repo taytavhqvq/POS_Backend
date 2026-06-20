@@ -37,4 +37,30 @@ const authorize = (...allowedRoles) => {
     };
 };
 
-module.exports = { authenticate, authorize };
+const authenticateCustomer = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return error(res, 'กรุณา login ก่อนใช้งาน', 401);
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        if (decoded.role !== "customer") {
+            return error(res, "Invalid token for this customer", 403);
+        }
+
+        req.user = decoded;
+        next();
+    } catch (err) {
+        if (err.name === "TokenExpiredError") {
+            return error(res, "Token expired, please login again", 401);
+        }
+        return error(res, "Invalid token", 401);
+    }
+};
+
+module.exports = { authenticate, authorize, authenticateCustomer };
