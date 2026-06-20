@@ -15,6 +15,7 @@ const unitRoutes = require("./routers/unit.routes");
 const productRoutes = require("./routers/product.routes");
 const supplierRoutes = require("./routers/supplier.routes");
 const purchaseRoutes = require("./routers/purchase.routes");
+const orderRoutes = require("./routers/order.routes");
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use("/api/units", unitRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/purchases", purchaseRoutes)
+app.use("/api/orders", orderRoutes);
 
 //Test routes
 app.get("/", (req, res) => res.json({ message: "POS API is running" }));
