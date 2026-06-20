@@ -144,4 +144,23 @@ const updateStatus = async (req, res) => {
     }
 };
 
-module.exports = { getAll, getOne, create, updateStatus };
+// ดู batch/lot ทั้งหมด (Admin) - ตัวที่ยังเหลืออยู่ขึ้นก่อน ตัวที่หมดแล้วไปอยู่ล่างสุด
+const getAllBatches = async (req, res) => {
+    try {
+        const result = await db.query(`
+        SELECT b.batchid, b.purchaseid, pr.proname, b.lot_name,
+                b.initial_qty, b.remaining_qty, b.expiry_date
+        FROM tbbatch b
+        INNER JOIN tbproducts pr ON b.proid = pr.proid
+        ORDER BY
+            CASE WHEN b.remaining_qty > 0 THEN 0 ELSE 1 END,
+            b.expiry_date ASC NULLS LAST,
+            b.batchid ASC
+        `);
+        return success(res, result.rows);
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+
+module.exports = { getAll, getOne, create, updateStatus, getAllBatches };
