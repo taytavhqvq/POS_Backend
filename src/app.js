@@ -17,6 +17,8 @@ const supplierRoutes = require("./routers/supplier.routes");
 const purchaseRoutes = require("./routers/purchase.routes");
 const orderRoutes = require("./routers/order.routes");
 const customerRoutes = require("./routers/customer.routes");
+const paymentRoutes = require("./routers/payment.routes");
+const path = require("path");
 
 const app = express();
 
@@ -38,6 +40,10 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/purchases", purchaseRoutes)
 app.use("/api/orders", orderRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/payments", paymentRoutes);
+
+// เปิดให้เข้าถึงไฟล์รูปสลิปได้ผ่าน URL
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 //Test routes
 app.get("/", (req, res) => res.json({ message: "POS API is running" }));

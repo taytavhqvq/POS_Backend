@@ -217,4 +217,4 @@ const getOne = async (req, res) => {
     }
 }
 
-module.exports = { createWalkIn, createOnline, getAll, getOne };
+module.exports = { createWalkIn, createOnline, getAll, getOne, deductStockFIFO };
