@@ -19,6 +19,7 @@ const orderRoutes = require("./routers/order.routes");
 const customerRoutes = require("./routers/customer.routes");
 const paymentRoutes = require("./routers/payment.routes");
 const batchRoutes = require("./routers/batch.routes");
+const userRoutes = require("./routers/user.routes");
 const path = require("path");
 
 const app = express();
@@ -43,6 +44,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/batches", batchRoutes);
+app.use("/api/users", userRoutes);
 
 // เปิดให้เข้าถึงไฟล์รูปสลิปได้ผ่าน URL
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
