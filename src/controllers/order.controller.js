@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { success, error } = require('../utils/response');
+const { createNotification } = require('../utils/notification');
 
 // Helper: ตัด stock แบบ FIFO จาก tbbatch (หน่วยฐานเสมอ)
 // แค่ลด remaining_qty ใน tbbatch ไม่ต้อง return อะไรไปใช้ใน tborder_items แล้ว
@@ -86,6 +87,25 @@ const buildReceiptData = async (orderid) => {
     return { ...order.rows[0], items: items.rows };
 };
 
+const checkStock = async (client, proid, io) => {
+    const stock = await client.query(
+        `SELECT qty, level FROM tbstock WHERE proid = $1`, [proid]
+    );
+    if (stock.rows.length === 0) return;
+
+    const { qty, level } = stock.rows[0];
+
+    if (qty === 0) {
+        // สินค้าหมด
+        const prod = await client.query(`SELECT proname FROM tbproducts WHERE proid = $1`, [proid]);
+        await createNotification(io, 'out_of_stock', `Product "${prod.rows[0].proname}" Out of stock`, proid);
+    } else if (level > 0 && qty <= level) {
+        // สินค้าใกล้หมด
+        const prod = await client.query(`SELECT proname FROM tbproducts WHERE proid = $1`, [proid]);
+        await createNotification(io, 'low_stock', `Product "${prod.rows[0].proname}" Low stock only ${qty} unit`, proid);
+    }
+};
+
 // POST /api/orders/walk-in
 const createWalkIn = async (req, res) => {
     const client = await db.connect();
@@ -123,9 +143,12 @@ const createWalkIn = async (req, res) => {
             );
 
             await client.query(`UPDATE tbstock SET qty = qty - $1 WHERE proid = $2`, [item.qtyInBase, item.proid]);
+            await checkStock(client, item.proid, req.app.locals.io);
         }
 
         await client.query('COMMIT');
+
+        
 
         const receipt = await buildReceiptData(order.orderid);
         return success(res, receipt, 'Sale Successful', 201);
@@ -178,6 +201,14 @@ const createOnline = async (req, res) => {
 
         await client.query('COMMIT');
 
+        const io = req.app.locals.io;
+        await createNotification(
+            io,
+            'new_order',
+            `New online order, ID: ${order.order_code} Total ${total} KIP`,
+            order.orderid
+        );
+
         const receipt = await buildReceiptData(order.orderid);
         return success(res, receipt, 'Order successful Please upload payment receipt', 201);
     } catch (err) {
@@ -187,6 +218,8 @@ const createOnline = async (req, res) => {
         client.release();
     }
 };
+
+
 
 // GET /api/orders - ค้นหา/filter ประวัติการขาย
 const getAll = async (req, res) => {
@@ -245,4 +278,4 @@ const getOne = async (req, res) => {
     }
 };
 
-module.exports = { createWalkIn, createOnline, getAll, getOne, deductStockFIFO };
+module.exports = { createWalkIn, createOnline, getAll, getOne, deductStockFIFO, checkStock };

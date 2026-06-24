@@ -1,8 +1,9 @@
 const db = require("../config/database");
 const { success, error } = require("../utils/response");
+const { createNotification } = require('../utils/notification');
 
 // ใช้ deductStockFIFO เดิมจาก order.controller.js — import มาใช้ซ้ำ
-const { deductStockFIFO } = require("./order.controller");
+const { deductStockFIFO, checkStock } = require("./order.controller");
 
 // ลูกค้าอัปโหลด/อัปโหลดซ้ำสลิป
 const uploadSlip = async (req, res) => {
@@ -99,6 +100,8 @@ const verify = async (req, res) => {
                 const qtyInBase = item.qty * item.qty_base;
                 await deductStockFIFO(client, item.proid, qtyInBase);
                 await client.query(`UPDATE tbstock SET qty = qty - $1 WHERE proid = $2`, [qtyInBase, item.proid]);
+                const io = req.app.locals.io;
+                await checkStock(client, item.proid, io);
             }
         } catch (stockErr) {
             // สินค้าไม่พอ → rollback การตัด stock ทั้งหมด แล้วเปลี่ยนเป็น "ปฏิเสธ" อัตโนมัติ
@@ -153,7 +156,7 @@ const reject = async (req, res) => {
             [req.user.userid, reason, paymentid]
         );
 
-        await db.query(`UPDATE tborders SET status = 'ປະຕິເສດ' WHERE orderid = $1`, [paymentid.rows[0].orderid]);
+        await db.query(`UPDATE tborders SET status = 'ປະຕິເສດ' WHERE orderid = $1`, [payment.rows[0].orderid]);
 
         return success(res, null, "Payment has been rejected");
     } catch (err) {
