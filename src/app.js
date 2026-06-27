@@ -34,6 +34,7 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
 app.use(express.json());
+
 // เปิดให้เข้าถึงไฟล์รูปสลิปได้ผ่าน URL
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
@@ -50,6 +51,7 @@ const paymentRoutes = require("./routers/payment.routes");
 const batchRoutes = require("./routers/batch.routes");
 const userRoutes = require("./routers/user.routes");
 const notificationRoutes = require('./routers/notification.routes');
+const reportRoutes = require('./routers/report.routes');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);
@@ -63,6 +65,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/batches", batchRoutes);
 app.use("/api/users", userRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.get("/", (req, res) => res.json({ message: "POS API is running" }));
 
