@@ -52,6 +52,7 @@ const batchRoutes = require("./routers/batch.routes");
 const userRoutes = require("./routers/user.routes");
 const notificationRoutes = require('./routers/notification.routes');
 const reportRoutes = require('./routers/report.routes');
+const dashboardRoutes = require('./routers/dashboard.routes');
 
 app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);
@@ -66,6 +67,7 @@ app.use("/api/batches", batchRoutes);
 app.use("/api/users", userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.get("/", (req, res) => res.json({ message: "POS API is running" }));
 

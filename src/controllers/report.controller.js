@@ -11,16 +11,14 @@ const getSalesReport = async (req, res) => {
         const to = date_to || new Date().toISOString().split('T')[0];
 
         // 1. ยอดรวมทั้งหมด
-        const [[summary]] = await Promise.all([
-        db.query(`
+        const summary = await db.query(`
             SELECT
-            COUNT(*) AS total_orders,
-            COALESCE(SUM(total), 0) AS total_amount
+                COUNT(*) AS total_orders,
+                COALESCE(SUM(total), 0) AS total_amount
             FROM tborders
             WHERE status = 'ຈ່າຍສຳເລັດ'
-            AND DATE(created_at) BETWEEN $1 AND $2
-        `, [from, to])
-        ]);
+                AND DATE(created_at) BETWEEN $1 AND $2
+        `, [from, to]);
 
         // 2. แยกตามประเภท (Walk-in / Online)
         const byType = await db.query(`
