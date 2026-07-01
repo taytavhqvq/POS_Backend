@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { getAll, getOne, create, update, remove } = require('../controllers/product.controller');
+const { getAll, getOne, create, update, remove, getByBarcode } = require('../controllers/product.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 
+router.get('/barcode/:barcode', authenticate, getByBarcode);
 router.get("/", authenticate, getAll);
 router.get("/:id", authenticate, getOne);
 router.post("/", authenticate, authorize("Admin"), create);

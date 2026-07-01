@@ -10,7 +10,7 @@ const getAll = async (req, res) => {
 
         // ดึงสินค้าที่ is_active = true พร้อม join หมวดหมู่
         const products = await db.query(`
-            SELECT p.proid, p.barcode, p.proname, p.createdate, p.is_active, c.catid, c.catname
+            SELECT p.proid, p.proname, p.createdate, p.is_active, c.catid, c.catname
             FROM tbproducts p
             LEFT JOIN tbcategory c 
             ON p.catid = c.catid
@@ -20,7 +20,7 @@ const getAll = async (req, res) => {
 
         // ดึงหน่วย/ราคาทั้งหมด แล้วเอามาแมพกับสินค้าแต่ละตัว
         const units = await db.query(`
-            SELECT pu.conid, pu.proid, pu.uid, u.uname, pu.qty_base, pu.imprice, pu.saleprice
+            SELECT pu.conid, pu.proid, pu.uid, u.uname, pu.barcode, pu.qty_base, pu.imprice, pu.saleprice
             FROM tbproduct_units pu
             JOIN tbunit u
             ON pu.uid = u.uid
@@ -49,7 +49,7 @@ const getOne = async (req, res) => {
             : "WHERE p.proid = $1 AND p.is_active = true"
 
         const product = await db.query(`
-            SELECT p.proid, p.barcode, p.proname, p.createdate, p.is_active, c.catid, c.catname
+            SELECT p.proid, p.proname, p.createdate, p.is_active, c.catid, c.catname
             FROM tbproducts p
             LEFT JOIN tbcategory c
             ON p.catid = c.catid
@@ -61,7 +61,7 @@ const getOne = async (req, res) => {
         }
 
         const units = await db.query(`
-            SELECT pu.conid, pu.uid, u.uname, pu.qty_base, pu.imprice, pu.saleprice
+            SELECT pu.conid, pu.uid, u.uname, pu.barcode, pu.qty_base, pu.imprice, pu.saleprice
             FROM tbproduct_units pu
             INNER JOIN tbunit u
             ON pu.uid = u.uid
@@ -77,11 +77,11 @@ const getOne = async (req, res) => {
 const create = async (req, res) => {
     const client = await db.connect();
     try {
-        const { barcode, proname, catid, units } = req.body;
+        const { proname, catid, units } = req.body;
 
         // validation พื้นฐาน
-        if (!barcode || !proname) {
-            return error(res, "Please provide barcode and product name", 400);
+        if (!proname) {
+            return error(res, "Please provide product name", 400);
         }
         if (!units || units.length === 0) {
             return error(res, "Please specify the unit and price for at least one unit", 400);
@@ -92,18 +92,18 @@ const create = async (req, res) => {
         // is_active = false เสมอ ต้องให้ Admin เปิดเองทีหลัง
         // 1. insert สินค้าหลัก
         const productResult = await client.query(`
-            INSERT INTO tbproducts (barcode, proname, catid, createdate, is_active)
-            VALUES ($1, $2, $3, CURRENT_DATE, false) RETURNING *`,
-            [barcode, proname, catid]
+            INSERT INTO tbproducts (proname, catid, createdate, is_active)
+            VALUES ($1, $2, CURRENT_DATE, false) RETURNING *`,
+            [proname, catid]
         );
         const newProduct = productResult.rows[0];
 
         // 2. insert หน่วย/ราคา ทุกตัวที่ส่งมา
         for (const u of units) {
             await client.query(
-                `INSERT INTO tbproduct_units (proid, uid, qty_base, imprice, saleprice)
-                VALUES ($1, $2, $3, $4, $5)`,
-                [newProduct.proid, u.uid, u.qty_base, u.imprice, u.saleprice]
+                `INSERT INTO tbproduct_units (proid, uid, barcode, qty_base, imprice, saleprice)
+                VALUES ($1, $2, $3, $4, $5, $6)`,
+                [newProduct.proid, u.uid, u.barcode || null, u.qty_base, u.imprice, u.saleprice]
             );
         }
 
@@ -141,7 +141,7 @@ const update = async (req, res) => {
     const client = await db.connect();
     try {
         const { id } = req.params;
-        const { barcode, proname, catid, units, is_active } = req.body;
+        const { proname, catid, units, is_active } = req.body;
 
         const sold = await hasBeenSold(id);
 
@@ -160,21 +160,21 @@ const update = async (req, res) => {
                 `UPDATE tbproducts SET is_active = $1 WHERE proid = $2 RETURNING *`,
                 [is_active, id]
             );
-            } else {
+        } else {
             // ยังไม่เคยขาย → แก้ได้ทุก field
             result = await client.query(
-                `UPDATE tbproducts SET barcode=$1, proname=$2, catid=$3, is_active=$4
-                WHERE proid=$5 RETURNING *`,
-                [barcode, proname, catid, is_active, id]
+                `UPDATE tbproducts SET proname=$1, catid=$2, is_active=$3
+                WHERE proid=$4 RETURNING *`,
+                [proname, catid, is_active, id]
             );
 
             if (units && units.length > 0) {
                 await client.query('DELETE FROM tbproduct_units WHERE proid = $1', [id]);
                 for (const u of units) {
                     await client.query(
-                        `INSERT INTO tbproduct_units (proid, uid, qty_base, imprice, saleprice)
-                        VALUES ($1, $2, $3, $4, $5)`,
-                        [id, u.uid, u.qty_base, u.imprice, u.saleprice]
+                        `INSERT INTO tbproduct_units (proid, uid, barcode, qty_base, imprice, saleprice)
+                        VALUES ($1, $2, $3, $4, $5, $6)`,
+                        [id, u.uid, u.barcode || null, u.qty_base, u.imprice, u.saleprice]
                     );
                 }
             }
@@ -242,4 +242,27 @@ const remove = async (req, res) => {
     }
 };
 
-module.exports = { getAll, getOne, create, update, remove };
+const getByBarcode = async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT p.proid, p.proname, c.catname,
+                    pu.conid, pu.uid, u.uname, pu.barcode,
+                    pu.qty_base, pu.imprice, pu.saleprice,
+                    s.qty AS stock_qty
+            FROM tbproduct_units pu
+            JOIN tbproducts p ON pu.proid = p.proid
+            JOIN tbunit u ON pu.uid = u.uid
+            LEFT JOIN tbcategory c ON p.catid = c.catid
+            LEFT JOIN tbstock s ON p.proid = s.proid
+            WHERE pu.barcode = $1
+                AND p.is_active = true
+        `, [req.params.barcode]);
+
+        if (result.rows.length === 0) return error(res, 'Product not found', 404);
+        return success(res, result.rows[0]);
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+
+module.exports = { getAll, getOne, create, update, remove, getByBarcode };
