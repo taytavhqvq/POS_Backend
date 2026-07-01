@@ -1,27 +1,40 @@
-const multer = require("multer");
-const path = require("path");
+const multer = require('multer');
+const path = require('path');
 
-// เก็บไฟล์สลิปไว้ที่ uploads/slips/ ตั้งชื่อไฟล์ใหม่กันชนกัน
-const storage = multer.diskStorage({
+// ===== Slip Upload =====
+const slipStorage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'uploads/slips/'),
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
-        const uniqueName = `slip_${req.params.orderid}_${Date.now()}${ext}`;
-        cb(null, uniqueName);
+        cb(null, `slip_${req.params.orderid}_${Date.now()}${ext}`);
     },
 });
 
-// รับเฉพาะไฟล์รูปภาพ
-const fileFilter = (req, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "image/webp"];
+// ===== Product Image Upload =====
+const productStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, 'uploads/products/'),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `product_${req.params.id || Date.now()}_${Date.now()}${ext}`);
+    },
+});
+
+const imageFilter = (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
     if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("Only image files (jpg, png, webp) are allowed", false))
+    else cb(new Error('Only image files (jpg, png, webp) are allowed'), false);
 };
 
-const upload = multer({
-    storage,
-    fileFilter,
+const uploadSlip = multer({
+    storage: slipStorage,
+    fileFilter: imageFilter,
     limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-module.exports = upload;
+const uploadProduct = multer({
+    storage: productStorage,
+    fileFilter: imageFilter,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
+
+module.exports = { uploadSlip, uploadProduct };

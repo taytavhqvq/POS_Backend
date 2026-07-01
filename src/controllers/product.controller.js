@@ -10,7 +10,7 @@ const getAll = async (req, res) => {
 
         // ดึงสินค้าที่ is_active = true พร้อม join หมวดหมู่
         const products = await db.query(`
-            SELECT p.proid, p.proname, p.createdate, p.is_active, c.catid, c.catname
+            SELECT p.proid, p.proname, p.createdate, p.is_active, p.image_url, c.catid, c.catname
             FROM tbproducts p
             LEFT JOIN tbcategory c 
             ON p.catid = c.catid
@@ -49,7 +49,7 @@ const getOne = async (req, res) => {
             : "WHERE p.proid = $1 AND p.is_active = true"
 
         const product = await db.query(`
-            SELECT p.proid, p.proname, p.createdate, p.is_active, c.catid, c.catname
+            SELECT p.proid, p.proname, p.createdate, p.is_active, p.image_url, c.catid, c.catname
             FROM tbproducts p
             LEFT JOIN tbcategory c
             ON p.catid = c.catid
@@ -87,19 +87,22 @@ const create = async (req, res) => {
             return error(res, "Please specify the unit and price for at least one unit", 400);
         }
 
+        const imageUrl = req.file ? `/uploads/products/${req.file.filename}` : null;
+        
         await client.query("BEGIN");   // เริ่ม transaction
 
         // is_active = false เสมอ ต้องให้ Admin เปิดเองทีหลัง
         // 1. insert สินค้าหลัก
         const productResult = await client.query(`
-            INSERT INTO tbproducts (proname, catid, createdate, is_active)
-            VALUES ($1, $2, CURRENT_DATE, false) RETURNING *`,
-            [proname, catid]
+            INSERT INTO tbproducts (proname, catid, createdate, is_active, image_url)
+            VALUES ($1, $2, CURRENT_DATE, false, $3) RETURNING *`,
+            [proname, catid, imageUrl]
         );
         const newProduct = productResult.rows[0];
 
         // 2. insert หน่วย/ราคา ทุกตัวที่ส่งมา
-        for (const u of units) {
+        const parsedUnits = typeof units === 'string' ? JSON.parse(units) : units;
+        for (const u of parsedUnits) {
             await client.query(
                 `INSERT INTO tbproduct_units (proid, uid, barcode, qty_base, imprice, saleprice)
                 VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -265,4 +268,22 @@ const getByBarcode = async (req, res) => {
     }
 };
 
-module.exports = { getAll, getOne, create, update, remove, getByBarcode };
+const uploadImage = async (req, res) => {
+    try {
+        if (!req.file) return error(res, 'Please upload an image', 400);
+
+        const { id } = req.params;
+        const imageUrl = `/uploads/products/${req.file.filename}`;
+
+        const result = await db.query(
+            `UPDATE tbproducts SET image_url = $1 WHERE proid = $2 RETURNING *`,
+            [imageUrl, id]
+        );
+        if (result.rows.length === 0) return error(res, 'Product not found', 404);
+
+        return success(res, { image_url: imageUrl }, 'Image uploaded successfully');
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+module.exports = { getAll, getOne, create, update, remove, getByBarcode, uploadImage };
