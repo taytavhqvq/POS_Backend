@@ -74,9 +74,13 @@ const create = async (req, res) => {
         );
         const purchase = purchaseResult.rows[0];
 
+        let purchaseTotal = 0;
+
         // 2. วนทุกรายการสินค้าที่สั่ง
         for (const item of items) {
             const { proid, uid, pack_qty, cost_price, lot_name, expiry_date } = item;
+
+            purchaseTotal += pack_qty * cost_price;
 
             // 2.1 หา qty_base ของหน่วยนี้ จาก tbproduct_units
             const unitResult = await client.query(
@@ -84,7 +88,7 @@ const create = async (req, res) => {
                 [proid, uid]
             );
             if (unitResult.rows.length === 0) {
-                throw new Error("No product unit information found for proid=${proid}, uid=${uid}. Please check tbproduct_units");
+                throw new Error(`No product unit information found for proid=${proid}, uid=${uid}. Please check tbproduct_units`);
             }
             const qtyBase = unitResult.rows[0].qty_base;
 
@@ -102,7 +106,7 @@ const create = async (req, res) => {
             await client.query(
                 `INSERT INTO tbbatch (purchaseid, proid, lot_name, initial_qty, remaining_qty, expiry_date)
                 VALUES ($1, $2, $3, $4, $4, $5)`,
-                [purchase.purchaseid, proid, lot_name || null, qtyInBase, expiry_date || null] 
+                [purchase.purchaseid, proid, lot_name || null, qtyInBase, qtyInBase, expiry_date || null] 
             );
 
             // 2.5 update tbstock (บวกหน่วยฐานเข้า qty และ balance)
@@ -112,6 +116,11 @@ const create = async (req, res) => {
                 [qtyInBase, proid]
             );
         }
+
+        await client.query(
+            `UPDATE tbpurchase SET total = $1 WHERE purchaseid = $2`,
+            [purchaseTotal, purchase.purchaseid]
+        );
 
         await client.query("COMMIT");
         return success(res, purchase, "Insert purchase order successful", 201)
@@ -148,14 +157,14 @@ const updateStatus = async (req, res) => {
 const getAllBatches = async (req, res) => {
     try {
         const result = await db.query(`
-        SELECT b.batchid, b.purchaseid, pr.proname, b.lot_name,
-                b.initial_qty, b.remaining_qty, b.expiry_date
-        FROM tbbatch b
-        INNER JOIN tbproducts pr ON b.proid = pr.proid
-        ORDER BY
-            CASE WHEN b.remaining_qty > 0 THEN 0 ELSE 1 END,
-            b.expiry_date ASC NULLS LAST,
-            b.batchid ASC
+            SELECT b.batchid, b.purchaseid, pr.proname, b.lot_name,
+                    b.initial_qty, b.remaining_qty, b.expiry_date
+            FROM tbbatch b
+            INNER JOIN tbproducts pr ON b.proid = pr.proid
+            ORDER BY
+                CASE WHEN b.remaining_qty > 0 THEN 0 ELSE 1 END,
+                b.expiry_date ASC NULLS LAST,
+                b.batchid ASC
         `);
         return success(res, result.rows);
     } catch (err) {

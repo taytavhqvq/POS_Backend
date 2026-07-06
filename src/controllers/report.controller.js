@@ -108,4 +108,78 @@ const getTopProducts = async (req, res) => {
     }
 };
 
-module.exports = { getSalesReport, getTopProducts };
+const getPurchaseReport = async (req, res) => {
+    try {
+        const { date_from, date_to } = req.query;
+
+        const from = date_from || new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        .toISOString().split('T')[0];
+        const to = date_to || new Date().toISOString().split('T')[0];
+
+        // ยอดรวมการจัดซื้อ
+        const summary = await db.query(`
+            SELECT
+                COUNT(*) AS total_purchases,
+                COALESCE(SUM(total), 0) AS total_amount
+            FROM tbpurchase
+            WHERE status = 'ຈ່າຍສຳເລັດແລ້ວ'
+                AND DATE(purchasedate) BETWEEN $1 AND $2
+            `, [from, to]);
+
+        // แยกตามซัพพลายเออร์
+        const bySupplier = await db.query(`
+            SELECT
+                s.comname AS supplier_name,
+                COUNT(*) AS total_purchases,
+                COALESCE(SUM(p.total), 0) AS total_amount
+            FROM tbpurchase p
+            JOIN tbsupplier s ON p.supid = s.supid
+            WHERE p.status = 'ຈ່າຍສຳເລັດແລ້ວ'
+                AND DATE(p.purchasedate) BETWEEN $1 AND $2
+            GROUP BY s.comname
+            ORDER BY total_amount DESC
+            `, [from, to]);
+
+        // รายการสินค้าที่ซื้อเข้าในช่วงนี้
+        const purchasedItems = await db.query(`
+            SELECT
+                pr.proname,
+                u.uname AS unit,
+                SUM(pi.pack_qty) AS total_qty,
+                SUM(pi.pack_qty * pi.cost_price) AS total_cost
+            FROM tbpurchase_items pi
+            JOIN tbpurchase p ON pi.purchaseid = p.purchaseid
+            JOIN tbproducts pr ON pi.proid = pr.proid
+            JOIN tbunit u ON pi.uid = u.uid
+            WHERE p.status = 'ຈ່າຍສຳເລັດແລ້ວ'
+                AND DATE(p.purchasedate) BETWEEN $1 AND $2
+            GROUP BY pr.proname, u.uname
+            ORDER BY total_cost DESC
+            `, [from, to]);
+
+        // ยอดจัดซื้อรายวัน (สำหรับกราฟ)
+        const dailyPurchases = await db.query(`
+            SELECT
+                DATE(purchasedate) AS date,
+                COUNT(*) AS total_purchases,
+                COALESCE(SUM(total), 0) AS total_amount
+            FROM tbpurchase
+            WHERE status = 'ຈ່າຍສຳເລັດແລ້ວ'
+                AND DATE(purchasedate) BETWEEN $1 AND $2
+            GROUP BY DATE(purchasedate)
+            ORDER BY DATE(purchasedate) ASC
+            `, [from, to]);
+
+        return success(res, {
+            period: { from, to },
+            summary: summary.rows[0],
+            by_supplier: bySupplier.rows,
+            purchased_items: purchasedItems.rows,
+            daily_purchases: dailyPurchases.rows,
+        });
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+
+module.exports = { getSalesReport, getTopProducts, getPurchaseReport };

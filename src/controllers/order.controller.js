@@ -94,15 +94,35 @@ const checkStock = async (client, proid, io) => {
     if (stock.rows.length === 0) return;
 
     const { qty, level } = stock.rows[0];
+    const prod = await client.query(`SELECT proname FROM tbproducts WHERE proid = $1`, [proid]);
+    const proname = prod.rows[0].proname;
 
     if (qty === 0) {
-        // สินค้าหมด
-        const prod = await client.query(`SELECT proname FROM tbproducts WHERE proid = $1`, [proid]);
-        await createNotification(io, 'out_of_stock', `Product "${prod.rows[0].proname}" Out of stock`, proid);
+        // เช็คว่าแจ้ง out_of_stock ของสินค้านี้ไปแล้วหรือยัง
+        // ถ้ายอด stock กลับมา > 0 แล้ว (ซื้อเข้า) notification เก่าจะถูก resolve อัตโนมัติ
+        const exists = await db.query(`
+            SELECT 1 FROM tbnotifications
+            WHERE type = 'out_of_stock' AND ref_id = $1
+                AND is_read = false
+            LIMIT 1
+        `, [proid]);
+
+        if (exists.rows.length === 0) {
+            await createNotification(io, 'out_of_stock', `Product "${proname}" is out of stock`, proid);
+        }
+
     } else if (level > 0 && qty <= level) {
-        // สินค้าใกล้หมด
-        const prod = await client.query(`SELECT proname FROM tbproducts WHERE proid = $1`, [proid]);
-        await createNotification(io, 'low_stock', `Product "${prod.rows[0].proname}" Low stock only ${qty} unit`, proid);
+        // เช็คว่าแจ้ง low_stock ของสินค้านี้ไปแล้วหรือยัง (ที่ยังไม่ได้อ่าน)
+        const exists = await db.query(`
+            SELECT 1 FROM tbnotifications
+            WHERE type = 'low_stock' AND ref_id = $1
+                AND is_read = false
+            LIMIT 1
+        `, [proid]);
+
+        if (exists.rows.length === 0) {
+            await createNotification(io, 'low_stock', `Product "${proname}" is running low (${qty} units remaining)`, proid);
+        }
     }
 };
 
@@ -224,7 +244,7 @@ const createOnline = async (req, res) => {
 // GET /api/orders - ค้นหา/filter ประวัติการขาย
 const getAll = async (req, res) => {
     try {
-        const { order_code, type, total, date } = req.query;
+        const { order_code, type, total, date, include_items } = req.query;
         let conditions = [];
         let params = [];
         let i = 1;
@@ -257,6 +277,27 @@ const getAll = async (req, res) => {
             ${whereClause}
             ORDER BY o.orderid DESC
         `, params);
+        
+        // ถ้า include_items=true → ดึง items ของทุก order มาด้วย
+        if (include_items === 'true' && result.rows.length > 0) {
+            const orderIds = result.rows.map(o => o.orderid);
+            const items = await db.query(`
+                SELECT oi.orderid, pr.proname, un.uname, oi.qty, oi.unit_price,
+                    (oi.qty * oi.unit_price) AS line_total
+                FROM tborder_items oi
+                JOIN tbproducts pr ON oi.proid = pr.proid
+                JOIN tbunit un ON oi.uid = un.uid
+                WHERE oi.orderid = ANY($1)
+                ORDER BY oi.itemid
+            `, [orderIds]);
+
+            // map items เข้ากับแต่ละ order
+            const data = result.rows.map(order => ({
+                ...order,
+                items: items.rows.filter(item => item.orderid === order.orderid)
+            }));
+            return success(res, data);
+        }
 
         return success(res, result.rows);
     } catch (err) {

@@ -1,10 +1,28 @@
 const db = require('../config/database');
 const { createNotification } = require('./notification');
 
+// ===== Reset balance ทุกต้นเดือน =====
+const resetMonthlyBalance = async () => {
+    try {
+        await db.query(`UPDATE tbstock SET balance = 0`);
+        console.log(`Monthly balance reset: ${new Date().toLocaleString()}`);
+    } catch (err) {
+        console.error('Monthly balance reset error:', err.message);
+    }
+};
+
+// เช็คว่าตอนนี้เป็นวันที่ 1 ของเดือนไหม
+const isFirstDayOfMonth = () => new Date().getDate() === 1;
+
 // ตรวจสอบ batch ที่ใกล้หมดอายุ/หมดอายุแล้ว
 // รัน 1 ครั้งต่อวัน (ตอนเปิด server และทุกๆ 24 ชั่วโมง)
 const checkExpiry = async (io) => {
     try {
+        // reset balance ถ้าเป็นวันที่ 1 ของเดือน
+        if (isFirstDayOfMonth()) {
+            await resetMonthlyBalance();
+        }
+        
         // 1. หมดอายุแล้ว (expiry_date < วันนี้) และยังมีของเหลืออยู่
         const expired = await db.query(`
             SELECT b.batchid, b.lot_name, b.expiry_date, p.proname
@@ -53,7 +71,7 @@ const checkExpiry = async (io) => {
                 if (exists.rows.length === 0) {
                     await createNotification(
                         io, level.type,
-                        `สินค้า "${batch.proname}" Lot ${batch.lot_name} expires in ${level.label} (${batch.expiry_date})`,
+                        `Product "${batch.proname}" Lot ${batch.lot_name} expires in ${level.label} (${batch.expiry_date})`,
                         batch.batchid
                     );
                 }

@@ -5,6 +5,14 @@ const { createNotification } = require('../utils/notification');
 // ใช้ deductStockFIFO เดิมจาก order.controller.js — import มาใช้ซ้ำ
 const { deductStockFIFO, checkStock } = require("./order.controller");
 
+const logPaymentAction = async (paymentid, action, actor_type, actor_id, note = null) => {
+    await db.query(
+        `INSERT INTO tbpayment_logs (paymentid, action, actor_type, actor_id, note, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())`,
+        [paymentid, action, actor_type, actor_id, note]
+    );
+};
+
 // ลูกค้าอัปโหลด/อัปโหลดซ้ำสลิป
 const uploadSlip = async (req, res) => {
     try {
@@ -44,6 +52,13 @@ const uploadSlip = async (req, res) => {
                 [orderid, slipUrl]
             );
         }
+
+        await logPaymentAction(
+            existing.rows.length > 0 ? existing.rows[0].paymentid : result.rows[0].paymentid,
+            'uploaded', 'customer', req.user.cid,
+            'Slip uploaded/re-uploaded'
+        );
+
 
         // กลับสถานะเป็น "รอยืนยันการชำระ" เสมอ (เผื่อก่อนหน้านี้ถูกปฏิเสธมา)
         await db.query(`UPDATE tborders SET status = 'ລໍຖ້າຢືນຢັນການຊຳລະ' WHERE orderid = $1`,[orderid]);
@@ -129,6 +144,9 @@ const verify = async (req, res) => {
         );
 
         await client.query("COMMIT");
+
+        await logPaymentAction(paymentid, 'approved', 'admin', req.user.userid);
+
         return success(res, null, "Payment approved successfully. Stock updated");
     } catch (err) {
         await client.query("ROLLBACK");
@@ -158,10 +176,28 @@ const reject = async (req, res) => {
 
         await db.query(`UPDATE tborders SET status = 'ປະຕິເສດ' WHERE orderid = $1`, [payment.rows[0].orderid]);
 
+        await logPaymentAction(paymentid, 'rejected', 'admin', req.user.userid, reason);
+
         return success(res, null, "Payment has been rejected");
     } catch (err) {
         return error(res, err.message);
     }
 };
 
-module.exports = { uploadSlip, getPending, verify, reject };
+const getLogs = async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT l.*, o.order_code
+            FROM tbpayment_logs l
+            JOIN tbpayments p ON l.paymentid = p.paymentid
+            JOIN tborders o ON p.orderid = o.orderid
+            WHERE l.paymentid = $1
+            ORDER BY l.created_at ASC
+            `, [req.params.paymentid]);
+        return success(res, result.rows);
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+
+module.exports = { uploadSlip, getPending, verify, reject, getLogs };
