@@ -49,7 +49,7 @@ const getOne = async (req, res) => {
             : "WHERE p.proid = $1 AND p.is_active = true"
 
         const product = await db.query(`
-            SELECT p.proid, p.proname, p.createdate, p.is_active, p.image_url, c.catid, c.catname
+            SELECT p.proid, p.proname, p.createdate, p.is_active, p.image_url, c.catname
             FROM tbproducts p
             LEFT JOIN tbcategory c
             ON p.catid = c.catid
