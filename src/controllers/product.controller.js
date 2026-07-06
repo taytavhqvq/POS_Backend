@@ -10,7 +10,7 @@ const getAll = async (req, res) => {
 
         // ดึงสินค้าที่ is_active = true พร้อม join หมวดหมู่
         const products = await db.query(`
-            SELECT p.proid, p.proname, p.createdate, p.is_active, p.image_url, c.catid, c.catname
+            SELECT p.proid, p.proname, p.createdate, p.is_active, p.image_url, c.catname
             FROM tbproducts p
             LEFT JOIN tbcategory c 
             ON p.catid = c.catid
