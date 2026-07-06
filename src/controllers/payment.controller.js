@@ -36,25 +36,35 @@ const uploadSlip = async (req, res) => {
                 SELECT * FROM tbpayments WHERE orderid = $1
             `, [orderid]);
 
+        let paymentId;
+
         if (existing.rows.length > 0) {
-            // อัปโหลดซ้ำ - ล้างค่าการตรวจสอบเก่าทิ้ง (verified_by, reject_reason) เพื่อรอตรวจใหม่
             await db.query(
                 `UPDATE tbpayments
-                SET slip_image_url = $1, slip_uploaded_at = NOW(),
-                    verified_by = NULL, verified_at = NULL, reject_reason = NULL
+                SET slip_image_url = $1,
+                    slip_uploaded_at = NOW(),
+                    verified_by = NULL,
+                    verified_at = NULL,
+                    reject_reason = NULL
                 WHERE orderid = $2`,
                 [slipUrl, orderid]
             );
+
+            paymentId = existing.rows[0].paymentid;
         } else {
-            await db.query(
-                `INSERT INTO tbpayments (orderid, slip_image_url, slip_uploaded_at, created_at)
-                VALUES ($1, $2, NOW(), NOW())`,
+            const result = await db.query(
+                `INSERT INTO tbpayments
+                    (orderid, slip_image_url, slip_uploaded_at, created_at)
+                VALUES ($1, $2, NOW(), NOW())
+                RETURNING paymentid`,
                 [orderid, slipUrl]
             );
+
+            paymentId = result.rows[0].paymentid;
         }
 
         await logPaymentAction(
-            existing.rows.length > 0 ? existing.rows[0].paymentid : result.rows[0].paymentid,
+            paymentId,
             'uploaded', 'customer', req.user.cid,
             'Slip uploaded/re-uploaded'
         );

@@ -9,7 +9,7 @@ const getAll = async (req, res) => {
         );
         return success(res, result.rows);
     } catch (err) {
-        return error(res, err.messgae);
+        return error(res, err.message);
     }
 };
 
@@ -23,7 +23,7 @@ const getOne = async (req, res) => {
         if (result.rows.length === 0) return error(res, "Staff not found", 404);
         return success(res, result.rows[0]);
     } catch (err) {
-        return error(res, err.messgae);
+        return error(res, err.message);
     }
 };
 

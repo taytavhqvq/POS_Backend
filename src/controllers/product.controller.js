@@ -237,7 +237,7 @@ const remove = async (req, res) => {
             } catch (err) {
                 await client.query("ROLLBACK");
                 client.release();
-                throw e;
+                throw err; 
             }
         }
     } catch (err) {

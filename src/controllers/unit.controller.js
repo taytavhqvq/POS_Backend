@@ -73,7 +73,7 @@ const remove = async (req, res) => {
             `DELETE FROM tbunit WHERE uid = $1 RETURNING *`,
             [id]
         );
-        if (result.rows.lenght === 0) {
+        if (result.rows.length === 0) {
             return error(res, "Unit not found", 404);
         }
 

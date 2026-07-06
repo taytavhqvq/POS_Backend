@@ -75,7 +75,7 @@ const remove = async (req, res) => {
             [id]
         );
         if (result.rows.length === 0) {
-            return error(res, "Category not fonud", 404);
+            return error(res, "Category not found", 404);
         }
         return success(res, null, "Delete category successful");
     } catch (err) {

@@ -5,7 +5,8 @@ const createNotification = async (io, type, message, ref_id = null) => {
     try {
         const result = await db.query(
             `INSERT INTO tbnotifications (type, message, ref_id, created_at)
-            VALUES ($1, $2, $3, NOW() RETURNING *)`,
+            VALUES ($1, $2, $3, NOW())
+            RETURNING *`,
             [type, message, ref_id]
         );
         const notif = result.rows[0];
