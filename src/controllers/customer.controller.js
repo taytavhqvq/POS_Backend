@@ -28,7 +28,8 @@ const register = async (req, res) => {
         // username = phone
         const result = await db.query(
             `INSERT INTO customer (username, password, phone)
-            VALUES ($1, $2, $3)`,
+            VALUES ($1, $2, $3)
+            RETURNING cid, username, phone`,
             [phone, hashed, phone]
         );
 
