@@ -41,7 +41,7 @@ const authenticateCustomer = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return error(res, 'กรุณา login ก่อนใช้งาน', 401);
+        return error(res, 'Please log in before use', 401);
     }
 
     const token = authHeader.split(' ')[1];
