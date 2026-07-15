@@ -105,7 +105,7 @@ const create = async (req, res) => {
             // 2.4 insert tbbatch (เก็บเป็นหน่วยฐานแล้ว)
             await client.query(
                 `INSERT INTO tbbatch (purchaseid, proid, lot_name, initial_qty, remaining_qty, expiry_date)
-                VALUES ($1, $2, $3, $4, $4, $5)`,
+                VALUES ($1, $2, $3, $4, $5, $6)`,
                 [purchase.purchaseid, proid, lot_name || null, qtyInBase, qtyInBase, expiry_date || null] 
             );
 
