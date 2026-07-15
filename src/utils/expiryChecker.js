@@ -32,6 +32,8 @@ const checkExpiry = async (io) => {
                 AND b.remaining_qty > 0
         `);
         for (const batch of expired.rows) {
+
+            const expiryDate = new Date(batch.expiry_date).toLocaleDateString('en-GB');
             // เช็คว่าแจ้งเตือน 'expired' ของ batch นี้มีอยู่แล้วหรือยัง (กันแจ้งซ้ำ)
             const exists = await db.query(
                 `SELECT 1 FROM tbnotifications WHERE type = 'expired' AND ref_id = $1 LIMIT 1`,
@@ -40,7 +42,7 @@ const checkExpiry = async (io) => {
             if (exists.rows.length === 0) {
                 await createNotification(
                 io, 'expired',
-                `Product "${batch.proname}" Lot ${batch.lot_name} has expired (${batch.expiry_date})`,
+                `Product "${batch.proname}" Lot ${batch.lot_name} has expired (${expiryDate})`,
                 batch.batchid
                 );
             }
@@ -48,9 +50,9 @@ const checkExpiry = async (io) => {
 
         // 2. ใกล้หมดอายุ - เช็ค 3 ระดับ: 2 เดือน, 1 เดือน, 1 อาทิตย์
         const levels = [
-            { days: 60, label: '2 เดือน', type: 'expiring_60d' },
-            { days: 30, label: '1 เดือน', type: 'expiring_30d' },
-            { days: 7,  label: '1 อาทิตย์', type: 'expiring_7d' },
+            { days: 60, label: '2 ເດືອນ', type: 'expiring_60d' },
+            { days: 30, label: '1 ເດືອນ', type: 'expiring_30d' },
+            { days: 7,  label: '1 ອາທິດ', type: 'expiring_7d' },
         ];
 
         for (const level of levels) {
@@ -63,6 +65,9 @@ const checkExpiry = async (io) => {
             `);
 
             for (const batch of batches.rows) {
+
+                const expiryDate = new Date(batch.expiry_date).toLocaleDateString('en-GB');
+                
                 // กันแจ้งซ้ำ: เช็คว่า type นี้ + ref_id นี้มีอยู่แล้วไหม
                 const exists = await db.query(
                     `SELECT 1 FROM tbnotifications WHERE type = $1 AND ref_id = $2 LIMIT 1`,
@@ -71,7 +76,7 @@ const checkExpiry = async (io) => {
                 if (exists.rows.length === 0) {
                     await createNotification(
                         io, level.type,
-                        `Product "${batch.proname}" Lot ${batch.lot_name} expires in ${level.label} (${batch.expiry_date})`,
+                        `Product "${batch.proname}" Lot ${batch.lot_name} expires in ${level.label} (${expiryDate})`,
                         batch.batchid
                     );
                 }
