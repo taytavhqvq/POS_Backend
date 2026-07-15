@@ -144,42 +144,30 @@ const update = async (req, res) => {
     const client = await db.connect();
     try {
         const { id } = req.params;
-        const { proname, catid, units, is_active } = req.body;
+        const { proname, catid, units } = req.body;
 
         const sold = await hasBeenSold(id);
 
+        if (sold) {
+            client.release();
+            return error(res, "This product already has a sales history and cannot be edited. Use the status endpoint to change is_active", 403);
+        }
+
         await client.query('BEGIN');
 
-        let result;
+        const result = await client.query(
+            `UPDATE tbproducts SET proname=$1, catid=$2 WHERE proid=$3 RETURNING *`,
+            [proname, catid, id]
+        );
 
-        if (sold) {
-            // เคยขายแล้ว → แก้ได้แค่ is_active เท่านั้น
-            if (is_active === undefined) {
-                await client.query('ROLLBACK');
-                client.release();
-                return error(res, "This product already has a sales history; only the 'is_active' status can be modified", 403);
-            }
-            result = await client.query(
-                `UPDATE tbproducts SET is_active = $1 WHERE proid = $2 RETURNING *`,
-                [is_active, id]
-            );
-        } else {
-            // ยังไม่เคยขาย → แก้ได้ทุก field
-            result = await client.query(
-                `UPDATE tbproducts SET proname=$1, catid=$2, is_active=$3
-                WHERE proid=$4 RETURNING *`,
-                [proname, catid, is_active, id]
-            );
-
-            if (units && units.length > 0) {
-                await client.query('DELETE FROM tbproduct_units WHERE proid = $1', [id]);
-                for (const u of units) {
-                    await client.query(
-                        `INSERT INTO tbproduct_units (proid, uid, barcode, qty_base, imprice, saleprice)
-                        VALUES ($1, $2, $3, $4, $5, $6)`,
-                        [id, u.uid, u.barcode || null, u.qty_base, u.imprice, u.saleprice]
-                    );
-                }
+        if (units && units.length > 0) {
+            await client.query('DELETE FROM tbproduct_units WHERE proid = $1', [id]);
+            for (const u of units) {
+                await client.query(
+                    `INSERT INTO tbproduct_units (proid, uid, barcode, qty_base, imprice, saleprice)
+                    VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [id, u.uid, u.barcode || null, u.qty_base, u.imprice, u.saleprice]
+                );
             }
         }
 
@@ -197,6 +185,27 @@ const update = async (req, res) => {
         return error(res, err.message);
     } finally {
         client.release();
+    }
+};
+
+const updateActiveStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { is_active } = req.body;
+
+        if (is_active === undefined) {
+            return error(res, 'Please provide is_active', 400);
+        }
+
+        const result = await db.query(
+            `UPDATE tbproducts SET is_active = $1 WHERE proid = $2 RETURNING *`,
+            [is_active, id]
+        );
+
+        if (result.rows.length === 0) return error(res, 'Product not found', 404);
+        return success(res, result.rows[0], 'Update product status successful');
+    } catch (err) {
+        return error(res, err.message);
     }
 };
 
@@ -286,4 +295,4 @@ const uploadImage = async (req, res) => {
         return error(res, err.message);
     }
 };
-module.exports = { getAll, getOne, create, update, remove, getByBarcode, uploadImage };
+module.exports = { getAll, getOne, create, update, remove, getByBarcode, uploadImage, updateActiveStatus };
