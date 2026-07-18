@@ -31,7 +31,9 @@ app.set("json spaces", 2);
 
 //Middleware
 app.use(cors());
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(morgan("dev"));
 app.use(express.json());
 
