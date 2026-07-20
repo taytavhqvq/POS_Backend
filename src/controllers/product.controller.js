@@ -149,7 +149,7 @@ const update = async (req, res) => {
         const sold = await hasBeenSold(id);
 
         if (sold) {
-            client.release();
+            //client.release();
             return error(res, "This product already has a sales history and cannot be edited. Use the status endpoint to change is_active", 403);
         }
 
@@ -173,7 +173,7 @@ const update = async (req, res) => {
 
         if (result.rows.length === 0) {
             await client.query('ROLLBACK');
-            client.release();
+            //client.release();
             return error(res, 'Product not found', 404);
         }
 
