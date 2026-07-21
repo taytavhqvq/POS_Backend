@@ -84,7 +84,6 @@ const getTopProducts = async (req, res) => {
             SELECT
                 p.proid,
                 p.proname,
-                p.barcode,
                 c.catname AS category,
                 SUM(oi.qty) AS total_qty_sold,
                 SUM(oi.qty * oi.unit_price) AS total_amount
@@ -94,7 +93,7 @@ const getTopProducts = async (req, res) => {
             LEFT JOIN tbcategory c ON p.catid = c.catid
             WHERE o.status = 'ຈ່າຍສຳເລັດ'
                 AND DATE(o.created_at) BETWEEN $1 AND $2
-            GROUP BY p.proid, p.proname, p.barcode, c.catname
+            GROUP BY p.proid, p.proname, c.catname
             ORDER BY total_qty_sold DESC
             LIMIT $3
         `, [from, to, limit]);
