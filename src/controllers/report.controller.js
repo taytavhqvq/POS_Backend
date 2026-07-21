@@ -121,7 +121,7 @@ const getPurchaseReport = async (req, res) => {
                 COUNT(*) AS total_purchases,
                 COALESCE(SUM(total), 0) AS total_amount
             FROM tbpurchase
-            WHERE status = 'ຈ່າຍສຳເລັດແລ້ວ'
+            WHERE status = 'ຈ່າຍສຳເລັດ'
                 AND DATE(purchasedate) BETWEEN $1 AND $2
             `, [from, to]);
 
@@ -133,7 +133,7 @@ const getPurchaseReport = async (req, res) => {
                 COALESCE(SUM(p.total), 0) AS total_amount
             FROM tbpurchase p
             JOIN tbsupplier s ON p.supid = s.supid
-            WHERE p.status = 'ຈ່າຍສຳເລັດແລ້ວ'
+            WHERE p.status = 'ຈ່າຍສຳເລັດ'
                 AND DATE(p.purchasedate) BETWEEN $1 AND $2
             GROUP BY s.comname
             ORDER BY total_amount DESC
@@ -150,7 +150,7 @@ const getPurchaseReport = async (req, res) => {
             JOIN tbpurchase p ON pi.purchaseid = p.purchaseid
             JOIN tbproducts pr ON pi.proid = pr.proid
             JOIN tbunit u ON pi.uid = u.uid
-            WHERE p.status = 'ຈ່າຍສຳເລັດແລ້ວ'
+            WHERE p.status = 'ຈ່າຍສຳເລັດ'
                 AND DATE(p.purchasedate) BETWEEN $1 AND $2
             GROUP BY pr.proname, u.uname
             ORDER BY total_cost DESC
@@ -163,7 +163,7 @@ const getPurchaseReport = async (req, res) => {
                 COUNT(*) AS total_purchases,
                 COALESCE(SUM(total), 0) AS total_amount
             FROM tbpurchase
-            WHERE status = 'ຈ່າຍສຳເລັດແລ້ວ'
+            WHERE status = 'ຈ່າຍສຳເລັດ'
                 AND DATE(purchasedate) BETWEEN $1 AND $2
             GROUP BY DATE(purchasedate)
             ORDER BY DATE(purchasedate) ASC
