@@ -221,14 +221,6 @@ const createOnline = async (req, res) => {
 
         await client.query('COMMIT');
 
-        const io = req.app.locals.io;
-        await createNotification(
-            io,
-            'new_order',
-            `New online order, ID: ${order.order_code} Total ${total} KIP`,
-            order.orderid
-        );
-
         const receipt = await buildReceiptData(order.orderid);
         return success(res, receipt, 'Order successful Please upload payment receipt', 201);
     } catch (err) {

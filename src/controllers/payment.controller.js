@@ -73,6 +73,16 @@ const uploadSlip = async (req, res) => {
         // กลับสถานะเป็น "รอยืนยันการชำระ" เสมอ (เผื่อก่อนหน้านี้ถูกปฏิเสธมา)
         await db.query(`UPDATE tborders SET status = 'ລໍຖ້າຢືນຢັນການຊຳລະ' WHERE orderid = $1`,[orderid]);
 
+        const io = req.app.locals.io;
+        await createNotification(
+            io,
+            'new_order',
+            isReupload
+                ? `Customer re-uploaded payment slip, Order ID: ${order.rows[0].order_code}`
+                : `New payment slip uploaded, Order ID: ${order.rows[0].order_code} Total ${order.rows[0].total} KIP`,
+            orderid
+        );
+        
         return success(res, { slip_url: slipUrl }, "Slip uploaded successfully. Awaiting verification");
     } catch (err) {
         return error(res, err.message);
