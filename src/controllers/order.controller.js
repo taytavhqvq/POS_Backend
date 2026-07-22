@@ -245,7 +245,7 @@ const createOnline = async (req, res) => {
 const getAll = async (req, res) => {
     try {
         const { order_code, type, total, date, include_items } = req.query;
-        let conditions = [];
+        let conditions = ["o.status = 'ຈ່າຍສຳເລັດ'"];   // บังคับกรองเฉพาะบิลที่ขายสำเร็จแล้วเท่านั้น
         let params = [];
         let i = 1;
 
@@ -266,7 +266,7 @@ const getAll = async (req, res) => {
             params.push(date);
         }
 
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
         const result = await db.query(`
             SELECT o.orderid, o.order_code, o.type, o.payment_method, o.total, o.status, o.created_at,
@@ -278,7 +278,6 @@ const getAll = async (req, res) => {
             ORDER BY o.orderid DESC
         `, params);
         
-        // ถ้า include_items=true → ดึง items ของทุก order มาด้วย
         if (include_items === 'true' && result.rows.length > 0) {
             const orderIds = result.rows.map(o => o.orderid);
             const items = await db.query(`
@@ -291,7 +290,6 @@ const getAll = async (req, res) => {
                 ORDER BY oi.itemid
             `, [orderIds]);
 
-            // map items เข้ากับแต่ละ order
             const data = result.rows.map(order => ({
                 ...order,
                 items: items.rows.filter(item => item.orderid === order.orderid)
