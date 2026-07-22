@@ -13,7 +13,7 @@ const db = require("./config/database");
 const path = require("path");
 
 const { startExpiryChecker } = require('./utils/expiryChecker');
-
+const { startOrderExpiryChecker } = require('./utils/orderExpiryChecker');
 
 const app = express();
 // ต้องใช้ http.createServer แทน app.listen ตรงๆ เพราะ socket.io ต้องการ http server
@@ -93,6 +93,7 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     startExpiryChecker(io); // เริ่มตรวจสอบวันหมดอายุทันที
+    startOrderExpiryChecker(io); // เริ่มตรวจสอบออเดอร์ที่ค้าง
 });
 
 

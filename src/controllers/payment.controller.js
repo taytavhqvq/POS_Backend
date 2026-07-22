@@ -20,7 +20,6 @@ const uploadSlip = async (req, res) => {
 
         if (!req.file) return error(res, "Please upload your payment slip", 400);
 
-        // เช็คว่า order นี้เป็นของลูกค้าที่ login จริง และเป็น order online เท่านั้น
         const order = await db.query(
             `SELECT * FROM tborders WHERE orderid = $1 AND cid = $2`,
             [orderid, req.user.cid]
@@ -28,15 +27,16 @@ const uploadSlip = async (req, res) => {
         if (order.rows.length === 0) return error(res, "Order not found", 404);
         if (order.rows[0].type !== 'Online') return error(res, "This order is not an online order", 400);
         if (order.rows[0].status === 'ຈ່າຍສຳເລັດ') return error(res, "This order has been successfully paid", 400);
+        if (order.rows[0].status === 'ຍົກເລີກ') return error(res, "This order has been cancelled and cannot upload a new slip", 400);
 
         const slipUrl = `/uploads/slips/${req.file.filename}`;
 
-        // เช็คว่ามี payment record อยู่แล้วหรือยัง (อัปโหลดซ้ำ = update, อัปโหลดครั้งแรก = insert)
         const existing = await db.query(`
                 SELECT * FROM tbpayments WHERE orderid = $1
             `, [orderid]);
 
         let paymentId;
+        let isReupload = false;
 
         if (existing.rows.length > 0) {
             await db.query(
@@ -51,6 +51,7 @@ const uploadSlip = async (req, res) => {
             );
 
             paymentId = existing.rows[0].paymentid;
+            isReupload = true;
         } else {
             const result = await db.query(
                 `INSERT INTO tbpayments
@@ -69,8 +70,6 @@ const uploadSlip = async (req, res) => {
             'Slip uploaded/re-uploaded'
         );
 
-
-        // กลับสถานะเป็น "รอยืนยันการชำระ" เสมอ (เผื่อก่อนหน้านี้ถูกปฏิเสธมา)
         await db.query(`UPDATE tborders SET status = 'ລໍຖ້າຢືນຢັນການຊຳລະ' WHERE orderid = $1`,[orderid]);
 
         const io = req.app.locals.io;
@@ -82,7 +81,7 @@ const uploadSlip = async (req, res) => {
                 : `New payment slip uploaded, Order ID: ${order.rows[0].order_code} Total ${order.rows[0].total} KIP`,
             orderid
         );
-        
+
         return success(res, { slip_url: slipUrl }, "Slip uploaded successfully. Awaiting verification");
     } catch (err) {
         return error(res, err.message);
@@ -177,28 +176,45 @@ const verify = async (req, res) => {
 };
 
 // Admin ปฏิเสธ พร้อมเหตุผล
+// action: 'resubmit' = ปฏิเสธชั่วคราว ให้ลูกค้าส่งสลิปใหม่ได้ (เช่น รูปไม่ชัด)
+//         'cancel'   = ยกเลิกถาวร ลูกค้าส่งสลิปใหม่ไม่ได้อีก (เช่น สงสัยทุจริต)
 const reject = async (req, res) => {
     try {
         const { paymentid } = req.params;
-        const { reason } = req.body;
+        const { reason, action } = req.body;
 
         if (!reason || reason.trim() === "") {
             return error(res, "Please enter a reason for reject", 400);
         }
 
+        if (!action || !['resubmit', 'cancel'].includes(action)) {
+            return error(res, "Please specify action: 'resubmit' or 'cancel'", 400);
+        }
+
         const payment = await db.query(`SELECT * FROM tbpayments WHERE paymentid = $1`, [paymentid]);
         if (payment.rows.length === 0) return error(res, "No payment record found", 404);
+
+        const orderid = payment.rows[0].orderid;
 
         await db.query(
             `UPDATE tbpayments SET verified_by = $1, verified_at = NOW(), reject_reason = $2 WHERE paymentid = $3`,
             [req.user.userid, reason, paymentid]
         );
 
-        await db.query(`UPDATE tborders SET status = 'ປະຕິເສດ' WHERE orderid = $1`, [payment.rows[0].orderid]);
+        // resubmit -> ปะติเสด (ให้ส่งใหม่ได้), cancel -> ยกเลิก (ถาวร)
+        const newStatus = action === 'cancel' ? 'ຍົກເລີກ' : 'ປະຕິເສດ';
+        await db.query(`UPDATE tborders SET status = $1 WHERE orderid = $2`, [newStatus, orderid]);
 
-        await logPaymentAction(paymentid, 'rejected', 'admin', req.user.userid, reason);
+        await logPaymentAction(
+            paymentid,
+            action === 'cancel' ? 'cancelled' : 'rejected',
+            'admin', req.user.userid, reason
+        );
 
-        return success(res, null, "Payment has been rejected");
+        return success(
+            res, null,
+            action === 'cancel' ? "Order has been cancelled permanently" : "Payment has been rejected, customer can resubmit"
+        );
     } catch (err) {
         return error(res, err.message);
     }
