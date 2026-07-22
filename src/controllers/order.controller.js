@@ -236,10 +236,13 @@ const createOnline = async (req, res) => {
 // GET /api/orders - ค้นหา/filter ประวัติการขาย
 const getAll = async (req, res) => {
     try {
-        const { order_code, type, total, date, include_items } = req.query;
-        let conditions = ["o.status = 'ຈ່າຍສຳເລັດ'"];   // บังคับกรองเฉพาะบิลที่ขายสำเร็จแล้วเท่านั้น
-        let params = [];
-        let i = 1;
+        const { order_code, type, total, date, include_items, status } = req.query;
+
+        // default = ຈ່າຍສຳເລັດ ถ้าไม่ระบุ status มา
+        const filterStatus = status || 'ຈ່າຍສຳເລັດ';
+        let conditions = ["o.status = $1"];
+        let params = [filterStatus];
+        let i = 2;
 
         if (order_code) {
             conditions.push(`o.order_code ILIKE $${i++}`);
@@ -262,10 +265,12 @@ const getAll = async (req, res) => {
 
         const result = await db.query(`
             SELECT o.orderid, o.order_code, o.type, o.payment_method, o.total, o.status, o.created_at,
-                    c.phone AS customer_phone, u.username AS staff_name
+                    c.phone AS customer_phone, u.username AS staff_name,
+                    p.reject_reason
             FROM tborders o
             LEFT JOIN customer c ON o.cid = c.cid
             LEFT JOIN "user" u ON o.userid = u.userid
+            LEFT JOIN tbpayments p ON o.orderid = p.orderid
             ${whereClause}
             ORDER BY o.orderid DESC
         `, params);
@@ -309,4 +314,27 @@ const getOne = async (req, res) => {
     }
 };
 
-module.exports = { createWalkIn, createOnline, getAll, getOne, deductStockFIFO, checkStock };
+// GET /api/orders/status-counts - นับจำนวน order แต่ละสถานะ (Online เท่านั้น เพราะ Walk-in จ่ายสำเร็จเสมอ ไม่มีความหมายต้องนับแยก)
+const getStatusCounts = async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT status, COUNT(*) AS total
+            FROM tborders
+            WHERE status IN ('ຈ່າຍສຳເລັດ', 'ປະຕິເສດ', 'ຍົກເລີກ')
+            GROUP BY status
+        `);
+
+        const counts = { paid: 0, rejected: 0, cancelled: 0 };
+        result.rows.forEach((row) => {
+            if (row.status === 'ຈ່າຍສຳເລັດ') counts.paid = parseInt(row.total);
+            if (row.status === 'ປະຕິເສດ') counts.rejected = parseInt(row.total);
+            if (row.status === 'ຍົກເລີກ') counts.cancelled = parseInt(row.total);
+        });
+
+        return success(res, counts);
+    } catch (err) {
+        return error(res, err.message);
+    }
+};
+
+module.exports = { createWalkIn, createOnline, getAll, getOne, getStatusCounts, deductStockFIFO, checkStock };
