@@ -17,7 +17,7 @@ const getOne = async (req, res) => {
     try {
         const { id } = req.params;
         const result = await db.query("SELECT * FROM tbsupplier WHERE supid = $1", [id]);
-        if (result.rows.length === 0) return error(res, "Supplier not found", 404);
+        if (result.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນຜູ້ສະໜອງ", 404);
         return success(res, result.rows[0]);
     } catch (err) {
         return error(res, err.message);
@@ -29,10 +29,10 @@ const create = async (req, res) => {
         const { comname, comtel, email, contactname, location, note } = req.body;
 
         if (!comname || comname.trim() === "") {
-            return error(res, "Please provide a company name", 400);
+            return error(res, "ກະລຸນາປ້ອນຊື່ບໍລິສັດ", 400);
         }
         if (comtel && !isValidComtel(comtel)) {
-            return error(res, "The phone number must be an 8-digit number", 400);
+            return error(res, "ໝາຍເລກໂທລະສັບຕ້ອງມີ 8 ໂຕ", 400);
         }
 
         const result = await db.query(
@@ -40,7 +40,7 @@ const create = async (req, res) => {
             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
             [comname, comtel, email, contactname, location, note]
         );
-        return success(res, result.rows[0], "Insert supplier successful", 201)
+        return success(res, result.rows[0], "ເພີ້ມຂໍ້ມູນຜູ້ສະໜອງສຳເລັດ", 201)
     } catch (err) {
         return error(res, err.message);
     }
@@ -52,10 +52,10 @@ const update = async (req, res) => {
         const { comname, comtel, email, contactname, location, note } = req.body;
 
         if (!comname || comname.trim() === "") {
-            return error(res, "Please provide a company name", 400);
+            return error(res, "ກະລຸນາປ້ອນຊື່ບໍລິສັດ", 400);
         }
         if (comtel && !isValidComtel(comtel)) {
-            return error(res, "The phone number must be an 8-digit number", 400);
+            return error(res, "ໝາຍເລກໂທລະສັບຕ້ອງມີ 8 ໂຕ", 400);
         }
 
         const result = await db.query(
@@ -63,8 +63,8 @@ const update = async (req, res) => {
             WHERE supid = $7 RETURNING *`,
             [comname, comtel, email, contactname, location, note, id]
         );
-        if (result.rows.length === 0) return error(res, "Supplier not found", 404);
-        return success(res, result.rows[0], "Update supplier successful");
+        if (result.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນຜູ້ສະໜອງ", 404);
+        return success(res, result.rows[0], "ແກ້ໄຂຂໍ້ມູນຜູ້ສະໜອງສຳເລັດ");
     } catch (err) {
         return error(res, err.message);
     }
@@ -77,12 +77,12 @@ const remove = async (req, res) => {
 
         const check = await db.query("SELECT 1 FROM tbpurchase WHERE supid = $1 LIMIT 1", [id]);
         if (check.rows.length > 0) {
-            return error(res, "This cannot be deleted because there is an existing purchase order from this supplier", 409);
+            return error(res, "ບໍ່ສາມາດລົບຂໍ້ມູນໄດ້ເນື່ອງຈາກມີໃບສັ່ງຊື້ຈາກຜູ້ສະໜອງຢູ່ແລ້ວ", 409);
         }
 
         const result = await db.query("DELETE FROM tbsupplier WHERE supid = $1 RETURNING *", [id]);
-        if (result.rows.length === 0) return error(res, "Supplier not found", 404);
-        return success(res, null, "Delete supplier successful");
+        if (result.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນຜູ້ສະໜອງ", 404);
+        return success(res, null, "ລົບຂໍ້ມູນຜູ້ສະໜອງສຳເລັດ");
     } catch (err) {
         return error(res, err.message)
     }

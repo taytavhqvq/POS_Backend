@@ -15,16 +15,16 @@ const create = async (req, res) => {
         const { uname } = req.body;
 
         if (!uname || uname.trim() === "") {
-            return error(res, "Please provide a unit name", 400);
+            return error(res, "ກະລຸນາປ້ອນຊື່ຫົວໜ່ວຍ", 400);
         }
         const result = await db.query(
             "INSERT INTO tbunit (uname) VALUES ($1) RETURNING *",
             [uname]
         );
-        return success(res, result.rows, "Insert unit successful", 201);
+        return success(res, result.rows, "ເພີ້ມຂໍ້ມູນຫົວໜ່ວຍສຳເລັດ", 201);
     } catch (err) {
         if (err.code === "23505") {
-            return error(res, "This unit name already exists", 409);
+            return error(res, "ຊື່ຫົວໜ່ວຍນີ້ມີໃນລະບົບແລ້ວ", 409);
         }
         return error(res, err.message);
     }
@@ -36,7 +36,7 @@ const update = async (req, res) => {
         const { uname } = req.body;
 
         if (!uname || uname.trim() === "") {
-            return error(res, "Please provide a unit name", 400);
+            return error(res, "ກະລຸນາປ້ອນຊື່ຫົວໜ່ວຍ", 400);
         }
 
         const result = await db.query(
@@ -44,13 +44,13 @@ const update = async (req, res) => {
             [uname, id]
         );
         if (result.rows.length === 0) {
-            return error(res, "Unit not found", 404);
+            return error(res, "ບໍ່ມີຂໍ້ມູນຫົວໜ່ວຍ", 404);
         }
 
-        return success(res, result.rows[0], "Update unit successful");
+        return success(res, result.rows[0], "ແກ້ໄຂຂໍ້ມູນຫົວໜ່ວຍສຳເລັດ");
     } catch (err) {
         if (err.code === "23505") {
-            return error(res, "This unit name already exists", 409);
+            return error(res, "ຊື່ຫົວໜ່ວຍນີ້ມີໃນລະບົບແລ້ວ", 409);
         }
         return error(res, err.message);
     }
@@ -66,7 +66,7 @@ const remove = async (req, res) => {
             [id]
         );
         if (check.rows.length > 0) {
-            return error(res, "Cannot be deleted because there are already products in this unit", 409);
+            return error(res, "ບໍ່ສາມາດລົບໄດ້ເນື່ອງຈາກມີສິນຄ້າໃຊ້ຫົວໜ່ວຍນີ້ຢູ່", 409);
         }
 
         const result = await db.query(
@@ -74,10 +74,10 @@ const remove = async (req, res) => {
             [id]
         );
         if (result.rows.length === 0) {
-            return error(res, "Unit not found", 404);
+            return error(res, "ບໍ່ມີຂໍ້ມູນຫົວໜ່ວຍ", 404);
         }
 
-        return success(res, null, "Delete unit successful");
+        return success(res, null, "ລົບຂໍ້ມູນຫົວໜ່ວຍສຳເລັດ");
     } catch (err) {
         return error(res, err.message);
     }

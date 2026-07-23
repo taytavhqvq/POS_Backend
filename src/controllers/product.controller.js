@@ -81,10 +81,10 @@ const create = async (req, res) => {
 
         // validation พื้นฐาน
         if (!proname) {
-            return error(res, "Please provide product name", 400);
+            return error(res, "ກະລຸນາປ້ອນຊື່ສິນຄ້າ", 400);
         }
         if (!units || units.length === 0) {
-            return error(res, "Please specify the unit and price for at least one unit", 400);
+            return error(res, "ກະລຸນາລະບຸຫົວໜ່ວຍ ແລະ ລາຄາສຳລັບຫົວໜ່ວຍຢ່າງໜ້ອຍ 1 ລາຍການ", 400);
         }
 
         const imageUrl = req.file ? `/uploads/products/${req.file.filename}` : null;
@@ -118,12 +118,12 @@ const create = async (req, res) => {
 
         await client.query("COMMIT");   // สำเร็จทั้งหมด → commit
 
-        return success(res, newProduct, "Insert product successful", 201);
+        return success(res, newProduct, "ເພີ້ມຂໍ້ມູນສິນຄ້າສຳເລັດ", 201);
     } catch (err) {
         await client.query("ROLLBACK");   // ถ้า error ตรงไหน → ย้อนกลับทั้งหมด
 
         if (err.code === "23505") {
-            return error(res, "This barcode already exists", 409);
+            return error(res, "Barcode ນີ້ມີໃນລະບົບແລ້ວ", 409);
         }
         return error(res, err.message);
     } finally {
@@ -150,7 +150,7 @@ const update = async (req, res) => {
 
         if (sold) {
             //client.release();
-            return error(res, "This product already has a sales history and cannot be edited. Use the status endpoint to change is_active", 403);
+            return error(res, "ສິນຄ້ານີ້ມີປະຫວັດການຂາຍແລ້ວ ແລະ ບໍ່ສາມາດແກ້ໄຂໄດ້", 403);
         }
 
         await client.query('BEGIN');
@@ -174,14 +174,14 @@ const update = async (req, res) => {
         if (result.rows.length === 0) {
             await client.query('ROLLBACK');
             //client.release();
-            return error(res, 'Product not found', 404);
+            return error(res, 'ບໍ່ມີຂໍ້ມູນສິນຄ້າ', 404);
         }
 
         await client.query('COMMIT');
-        return success(res, result.rows[0], 'Update product successful');
+        return success(res, result.rows[0], 'ແກ້ໄຂຂໍ້ມູນສິນຄ້າສຳເລັດ');
     } catch (err) {
         await client.query('ROLLBACK');
-        if (err.code === '23505') return error(res, 'Barcode already exists', 409);
+        if (err.code === '23505') return error(res, 'Barcode ນີ້ມີໃນລະບົບແລ້ວ', 409);
         return error(res, err.message);
     } finally {
         client.release();
@@ -194,7 +194,7 @@ const updateActiveStatus = async (req, res) => {
         const { is_active } = req.body;
 
         if (is_active === undefined) {
-            return error(res, 'Please provide is_active', 400);
+            return error(res, 'ກະລຸນາເລືອກສະຖານະ', 400);
         }
 
         const result = await db.query(
@@ -202,8 +202,8 @@ const updateActiveStatus = async (req, res) => {
             [is_active, id]
         );
 
-        if (result.rows.length === 0) return error(res, 'Product not found', 404);
-        return success(res, result.rows[0], 'Update product status successful');
+        if (result.rows.length === 0) return error(res, 'ບໍ່ມີຂໍ້ມູນສິນຄ້າ', 404);
+        return success(res, result.rows[0], 'ແກ້ໄຂສະຖານະສິນຄ້າສຳເລັດ');
     } catch (err) {
         return error(res, err.message);
     }
@@ -223,8 +223,8 @@ const remove = async (req, res) => {
                 `UPDATE tbproducts SET is_active = false WHERE proid = $1 RETURNING *`,
                 [id]
             );
-            if (result.rows.length === 0) return error(res, "Product not found", 404);
-            return success(res, null, "Sales of this product have been discontinued (The product information cannot be deleted because it has sales history)");
+            if (result.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນສິນຄ້າ", 404);
+            return success(res, null, "ສິນຄ້ານີ້ໄດ້ປິດໃຊ້ງານໄປແລ້ວ ແຕ່ບໍ່ສາມາດລົບໄດ້ເນື່ອງຈາກມີປະຫວັດການຂາຍ");
         } else {
             // hard delete - ต้องลบ tbproduct_units และ tbstock ก่อน เพราะมี FK
             const client = await db.connect();
@@ -238,11 +238,11 @@ const remove = async (req, res) => {
                 if (result.rows.length === 0) {
                     await client.query("ROLLBACK");
                     client.release();
-                    return error(res, "Product not found", 404);
+                    return error(res, "ບໍ່ມີຂໍ້ມູນສິນຄ້າ", 404);
                 }
                 await client.query("COMMIT");
                 client.release();
-                return success(res, null, "Delete product successful");
+                return success(res, null, "ລົບຂໍ້ມູນສິນຄ້າສຳເລັດ");
             } catch (err) {
                 await client.query("ROLLBACK");
                 client.release();
@@ -270,7 +270,7 @@ const getByBarcode = async (req, res) => {
                 AND p.is_active = true
         `, [req.params.barcode]);
 
-        if (result.rows.length === 0) return error(res, 'Product not found', 404);
+        if (result.rows.length === 0) return error(res, 'ບໍ່ມີຂໍ້ມູນສິນຄ້າ', 404);
         return success(res, result.rows[0]);
     } catch (err) {
         return error(res, err.message);
@@ -279,7 +279,7 @@ const getByBarcode = async (req, res) => {
 
 const uploadImage = async (req, res) => {
     try {
-        if (!req.file) return error(res, 'Please upload an image', 400);
+        if (!req.file) return error(res, 'ກະລຸນາອັບໂຫຼດຮູບພາບ', 400);
 
         const { id } = req.params;
         const imageUrl = `/uploads/products/${req.file.filename}`;
@@ -288,9 +288,9 @@ const uploadImage = async (req, res) => {
             `UPDATE tbproducts SET image_url = $1 WHERE proid = $2 RETURNING *`,
             [imageUrl, id]
         );
-        if (result.rows.length === 0) return error(res, 'Product not found', 404);
+        if (result.rows.length === 0) return error(res, 'ບໍ່ມີຂໍ້ມູນສິນຄ້າ', 404);
 
-        return success(res, { image_url: imageUrl }, 'Image uploaded successfully');
+        return success(res, { image_url: imageUrl }, 'ອັບໂຫຼດຮູບພາບສຳເລັດ');
     } catch (err) {
         return error(res, err.message);
     }

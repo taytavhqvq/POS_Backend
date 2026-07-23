@@ -9,7 +9,7 @@ const authenticate = (req, res, next) => {
     const authHeader = req.headers.authorization;  // รูปแบบ: "Bearer xxxxx"
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return error(res, "Please login first", 401);
+        return error(res, "ກະລຸນາເຂົ້າສູ່ລະບົບກ່ອນ", 401);
     }
 
     const token = authHeader.split(" ")[1];   // ตัดคำว่า "Bearer " ออก เหลือแค่ token
@@ -21,7 +21,7 @@ const authenticate = (req, res, next) => {
         next();     // ผ่าน ไปต่อได้
     } catch (err) {
         if (err.name === "TokenExpiredError") {
-            return error(res, "Token expired, please login again", 401);
+            return error(res, "Token ໝົດອາຍຸ ກະລຸນາເຂົ້າສູ່ລະບົບອີກຄັ້ງ", 401);
         }
         return error(res, "Invalid token", 401);
     }
@@ -31,7 +31,7 @@ const authenticate = (req, res, next) => {
 const authorize = (...allowedRoles) => {
     return (req, res, next) => {
         if (!allowedRoles.includes(req.user.state)) {
-            return error(res, "You do not have permission to access this resource", 403);
+            return error(res, "ທ່ານບໍ່ມີສິດໃນການເຂົ້າເຖິງລະບົບ", 403);
         }
         next();
     };
@@ -41,7 +41,7 @@ const authenticateCustomer = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return error(res, 'Please log in before use', 401);
+        return error(res, 'ກະລຸນາເຂົ້າສູ່ລະບົບກ່ອນໃຊ້ງານ', 401);
     }
 
     const token = authHeader.split(' ')[1];
@@ -50,14 +50,14 @@ const authenticateCustomer = (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         if (decoded.role !== "customer") {
-            return error(res, "Invalid token for this customer", 403);
+            return error(res, "Token ບໍ່ຖືກຕ້ອງສຳລັບລູກຄ້າຄົນນີ້", 403);
         }
 
         req.user = decoded;
         next();
     } catch (err) {
         if (err.name === "TokenExpiredError") {
-            return error(res, "Token expired, please login again", 401);
+            return error(res, "Token ໝົດອາຍຸ ກະລຸນາເຂົ້າສູ່ລະບົບອີກຄັ້ງ", 401);
         }
         return error(res, "Invalid token", 401);
     }

@@ -28,7 +28,7 @@ const getOne = async (req, res) => {
             WHERE p.purchaseid = $1
         `, [id]);
 
-        if (purchase.rows.length === 0) return error(res, "No purchase order found", 404);
+        if (purchase.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນໃບສັ່ງຊື້", 404);
 
         const items = await db.query(`
             SELECT pi.itemid, pi.proid, pr.proname, pi.uid, un.uname,
@@ -54,14 +54,14 @@ const create = async (req, res) => {
         const { supid, note, items } = req.body;
 
         // validation พื้นฐาน
-        if (!supid) return error(res, "Please provide a supplier", 400);
-        if (!items || items.length === 0) return error(res, "Please specify at least one item", 400);
+        if (!supid) return error(res, "ກະລຸນາເລືອກຜູ້ສະໜອງ", 400);
+        if (!items || items.length === 0) return error(res, "ກະລຸນາເລືອກສິນຄ້າຢ່າງໜ້ອຍ 1 ລາຍການ", 400);
 
         for (const item of items) {
             if (!item.proid || !item.uid || !item.pack_qty || item.cost_price == null) {
-                return error(res, "The product information is incomplete (proid, uid, pack_qty, cost_price)", 400);
+                return error(res, "ປ້ອນຂໍ້ມູນສິນຄ້າບໍ່ຄົບຖ້ວນ", 400);
             }
-            if (item.pack_qty <= 0) return error(res, "The quantity ordered must be greater than 0", 400);
+            if (item.pack_qty <= 0) return error(res, "ຈຳນວນຕ້ອງຫລາຍກວ່າ 0", 400);
         }
 
         await client.query("BEGIN");
@@ -88,7 +88,7 @@ const create = async (req, res) => {
                 [proid, uid]
             );
             if (unitResult.rows.length === 0) {
-                throw new Error(`No product unit information found for proid=${proid}, uid=${uid}. Please check tbproduct_units`);
+                throw new Error(`ບໍ່ມີຂໍ້ມູນຫົວໜ່ວຍສຳຫລັບສິນຄ້ານີ້ ກະລຸນາກວດສອບຂໍ້ມູນສິນຄ້າ`);
             }
             const qtyBase = unitResult.rows[0].qty_base;
 
@@ -123,7 +123,7 @@ const create = async (req, res) => {
         );
 
         await client.query("COMMIT");
-        return success(res, purchase, "Insert purchase order successful", 201)
+        return success(res, purchase, "ເພີ້ມຂໍ້ມູນໃບສັ່ງຊື້ສຳເລັດ", 201)
     } catch (err) {
         await client.query("ROLLBACK");
         return error(res, err.message);
@@ -138,16 +138,16 @@ const updateStatus = async (req, res) => {
         const { id } = req.params;
 
         const check = await db.query("SELECT status FROM tbpurchase WHERE purchaseid = $1", [id]);
-        if (check.rows.length === 0) return error(res, "Purchase order not found", 404);
+        if (check.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນໃບສັ່ງຊື້", 404);
         if (check.rows[0].status === 'ຈ່າຍສຳເລັດ') {
-            return error(res, "This purchase order has been successfully paid for", 400);
+            return error(res, "ໃບສັ່ງຊື້ນີ້ໄດ້ຈ່າຍເງິນສຳເລັດແລ້ວ", 400);
         }
 
         const result = await db.query(
             `UPDATE tbpurchase SET status = 'ຈ່າຍສຳເລັດ' WHERE purchaseid = $1 RETURNING *`,
             [id]
         );
-        return success(res, result.rows[0], "Update the status to ຈ່າຍສຳເລັດ");
+        return success(res, result.rows[0], "ແກ້ໄຂສະຖານະເປັນ ຈ່າຍສຳເລັດ");
     } catch (err) {
         return error(res, err.message);
     }

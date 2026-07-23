@@ -15,16 +15,16 @@ const create = async (req, res) => {
         const { catname } = req.body;
         
         if(!catname || catname.trim() === "") {
-            return error(res, "Please provide a category name", 400);
+            return error(res, "ກະລຸນາປ້ອນຊື່ໜວດໝູ່", 400);
         }
         const result = await db.query(
             "INSERT INTO tbcategory (catname) VALUES ($1) RETURNING *",
             [catname] 
         );
-        return success(res, result.rows[0], "Insert category successful", 201);
+        return success(res, result.rows[0], "ເພີ້ມຂໍ້ມູນໝວດໝູ່ສຳເລັດແລ້ວ", 201);
     } catch (err) {
         if (err.code === "23505") {
-            return error(res, "This category name already exists", 409);
+            return error(res, "ຊື່ໝວດໝູ່ນີ້ມີໃນລະບົບແລ້ວ", 409);
         }
         return error(res, err.message);
     }
@@ -36,7 +36,7 @@ const update = async (req, res) => {
         const { catname } = req.body;
 
         if (!catname || catname.trim() === "") {
-            return error(res, "Please provide a category name", 400);
+            return error(res, "ກະລຸນາປ້ອນຊື່ໜວດໝູ່", 400);
         }
 
         const result = await db.query(
@@ -45,13 +45,13 @@ const update = async (req, res) => {
         );
 
         if (result.rows.length === 0) {
-            return error(res, "Category not found", 404);
+            return error(res, "ບໍ່ມີຂໍ້ມູນໝວດໝູ່", 404);
         }
 
-        return success(res, result.rows[0], "Update category successful");
+        return success(res, result.rows[0], "ແກ້ໄຂຂໍ້ມູນໝວດໝູ່ສຳເລັດແລ້ວ");
     } catch (err) {
         if (err.code === "23505") {
-            return error(res, "This category name already exists", 409);
+            return error(res, "ຊື່ໝວດໝູ່ນີ້ມີໃນລະບົບແລ້ວ", 409);
         }
         return error(res, err.message);
     }
@@ -67,7 +67,7 @@ const remove = async (req, res) => {
             [id]
         );
         if (check.rows.length > 0) {
-            return error(res, "Cannot be deleted because there are already products in this category", 409);
+            return error(res, "ບໍ່ສາມາດລົບໄດ້ເນື່ອງຈາກມີສິນຄ້າໃຊ້ໝວດໝູ່ນີ້ຢູ່", 409);
         }
 
         const result = await db.query(
@@ -75,9 +75,9 @@ const remove = async (req, res) => {
             [id]
         );
         if (result.rows.length === 0) {
-            return error(res, "Category not found", 404);
+            return error(res, "ບໍ່ມີຂໍ້ມູນໝວດໝູ່", 404);
         }
-        return success(res, null, "Delete category successful");
+        return success(res, null, "ລົບຂໍ້ມູນໝວດໝູ່ສຳເລັດແລ້ວ");
     } catch (err) {
         return error(res, err.message);
     }

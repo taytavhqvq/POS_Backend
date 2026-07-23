@@ -26,13 +26,13 @@ const checkPendingOrders = async (io) => {
             await createNotification(
                 io,
                 'order_auto_cancelled',
-                `Order ${order.order_code} was automatically cancelled (no payment slip within ${EXPIRY_MINUTES} minutes)`,
+                `Order ${order.order_code} ຖືກຍົກເລີກອັດຕະໂນມັດ (ບໍ່ສົ່ງຮູບການໂອນເງີນໃນ ${EXPIRY_MINUTES} ນາທີ)`,
                 order.orderid
             );
         }
 
         if (expired.rows.length > 0) {
-            console.log(`Auto-cancelled ${expired.rows.length} pending order(s): ${new Date().toLocaleString()}`);
+            console.log(`ຍົກເລີກອໍເດີທີ່ລໍຖ້າດຳເນີນການອັດຕະໂນມັດ ${expired.rows.length} ລາຍການເມື່ອ: ${new Date().toLocaleString()}`);
         }
     } catch (err) {
         console.error('Order expiry check error:', err.message);

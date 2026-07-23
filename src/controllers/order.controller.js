@@ -26,7 +26,7 @@ const deductStockFIFO = async (client, proid, qtyNeededInBase) => {
     }
 
     if (remaining > 0) {
-        throw new Error(`Product proid=${proid} has insufficient stock (short by ${remaining} base units)`);
+        throw new Error(`ຈຳນວນສິນຄ້າບໍ່ພຽງພໍ`);
     }
 };
 
@@ -38,7 +38,7 @@ const calculateItemsWithPrice = async (client, items) => {
     for (const item of items) {
         const { proid, uid, qty } = item;
         if (!proid || !uid || !qty || qty <= 0) {
-            throw new Error('Incorrect product information (proid, uid, qty)');
+            throw new Error('ຂໍ້ມູນສິນຄ້າບໍ່ຖືກຕ້ອງ');
         }
 
         const priceResult = await client.query(
@@ -46,7 +46,7 @@ const calculateItemsWithPrice = async (client, items) => {
             [proid, uid]
         );
         if (priceResult.rows.length === 0) {
-            throw new Error(`Product not found proid=${proid}, uid=${uid}`);
+            throw new Error(`ບໍ່ມີຂໍ້ມູນສິນຄ້າ`);
         }
 
         const { saleprice, qty_base } = priceResult.rows[0];
@@ -108,7 +108,7 @@ const checkStock = async (client, proid, io) => {
         `, [proid]);
 
         if (exists.rows.length === 0) {
-            await createNotification(io, 'out_of_stock', `Product "${proname}" is out of stock`, proid);
+            await createNotification(io, 'ໝົດສະຕັອກ', `ສິນຄ້າ "${proname}" ໝົດສະຕັອກ`, proid);
         }
 
     } else if (level > 0 && qty <= level) {
@@ -121,7 +121,7 @@ const checkStock = async (client, proid, io) => {
         `, [proid]);
 
         if (exists.rows.length === 0) {
-            await createNotification(io, 'low_stock', `Product "${proname}" is running low (${qty} units remaining)`, proid);
+            await createNotification(io, 'ໃກ້ໝົດສະຕັອກ', `ສິນຄ້າ "${proname}" ໃກ້ໝົດສະຕັອກ`, proid);
         }
     }
 };
@@ -133,10 +133,10 @@ const createWalkIn = async (req, res) => {
         const { payment_method, items } = req.body;
 
         if (!payment_method || !['ເງີນສົດ', 'ເງີນໂອນ'].includes(payment_method)) {
-            return error(res, 'Select Payment Method (ເງີນສົດ or ເງີນໂອນ)', 400);
+            return error(res, 'ເລືອກວິທີການຊຳລະເງີນ (ເງີນສົດ ຫຼື ເງີນໂອນ)', 400);
         }
         if (!items || items.length === 0) {
-            return error(res, 'Please add at least 1 item', 400);
+            return error(res, 'ກະລຸນາເພີ້ມສິນຄ້າຢ່າງໜ້ອຍ 1 ລາຍການ', 400);
         }
 
         await client.query('BEGIN');
@@ -168,8 +168,6 @@ const createWalkIn = async (req, res) => {
 
         await client.query('COMMIT');
 
-        
-
         const receipt = await buildReceiptData(order.orderid);
         return success(res, receipt, 'Sale Successful', 201);
     } catch (err) {
@@ -187,7 +185,7 @@ const createOnline = async (req, res) => {
         const { items } = req.body;
 
         if (!items || items.length === 0) {
-            return error(res, 'Please add at least 1 item', 400);
+            return error(res, 'ກະລຸນາເພີ້ມສິນຄ້າຢ່າງໜ້ອຍ 1 ລາຍການ', 400);
         }
 
         await client.query('BEGIN');
@@ -198,7 +196,7 @@ const createOnline = async (req, res) => {
         for (const item of itemsWithPrice) {
             const stockCheck = await client.query(`SELECT qty FROM tbstock WHERE proid = $1`, [item.proid]);
             if (stockCheck.rows.length === 0 || stockCheck.rows[0].qty < item.qtyInBase) {
-                throw new Error(`Product proid=${item.proid} is out of stock`);
+                throw new Error(`ສິນຄ້າລາຍການນີ້ໝົດສະຕັອກ`);
             }
         }
 
@@ -222,7 +220,7 @@ const createOnline = async (req, res) => {
         await client.query('COMMIT');
 
         const receipt = await buildReceiptData(order.orderid);
-        return success(res, receipt, 'Order successful Please upload payment receipt', 201);
+        return success(res, receipt, 'ສັ່ງຊື້ສຳເລັດແລ້ວ ກະລຸນາອັບໂຫຼດຮູບການໂອນເງີນ', 201);
     } catch (err) {
         await client.query('ROLLBACK');
         return error(res, err.message);
@@ -305,7 +303,7 @@ const getOne = async (req, res) => {
     try {
         const { id } = req.params;
         const exists = await db.query(`SELECT orderid FROM tborders WHERE orderid = $1`, [id]);
-        if (exists.rows.length === 0) return error(res, 'Order not found', 404);
+        if (exists.rows.length === 0) return error(res, 'ບໍ່ມີຂໍ້ມູນອໍເດີ', 404);
 
         const receipt = await buildReceiptData(id);
         return success(res, receipt);

@@ -18,16 +18,16 @@ const uploadSlip = async (req, res) => {
     try {
         const { orderid } = req.params;
 
-        if (!req.file) return error(res, "Please upload your payment slip", 400);
+        if (!req.file) return error(res, "ກະລຸນາອັບໂຫຼດຮູບການໂອນເງີນ", 400);
 
         const order = await db.query(
             `SELECT * FROM tborders WHERE orderid = $1 AND cid = $2`,
             [orderid, req.user.cid]
         );
-        if (order.rows.length === 0) return error(res, "Order not found", 404);
-        if (order.rows[0].type !== 'Online') return error(res, "This order is not an online order", 400);
-        if (order.rows[0].status === 'ຈ່າຍສຳເລັດ') return error(res, "This order has been successfully paid", 400);
-        if (order.rows[0].status === 'ຍົກເລີກ') return error(res, "This order has been cancelled and cannot upload a new slip", 400);
+        if (order.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນອໍເດີ", 404);
+        if (order.rows[0].type !== 'Online') return error(res, "ອໍເດີນີ້ບໍ່ແມ່ນການສັ່ງຊື້ອອນລາຍ", 400);
+        if (order.rows[0].status === 'ຈ່າຍສຳເລັດ') return error(res, "ອໍເດີນີ້ໄດ້ຮັບການຈ່າຍເງິນສຳເລັດແລ້ວ", 400);
+        if (order.rows[0].status === 'ຍົກເລີກ') return error(res, "ອໍເດີນີ້ຖືກຍົກເລີກແລ້ວ ແລະ ບໍ່ສາມາດອັບໂຫຼດຮູບການໂອນເງີນໃໝ່ໄດ້", 400);
 
         const slipUrl = `/uploads/slips/${req.file.filename}`;
 
@@ -77,12 +77,12 @@ const uploadSlip = async (req, res) => {
             io,
             'new_order',
             isReupload
-                ? `Customer re-uploaded payment slip, Order ID: ${order.rows[0].order_code}`
-                : `New payment slip uploaded, Order ID: ${order.rows[0].order_code} Total ${order.rows[0].total} KIP`,
+                ? `ລູກຄ້າໄດ້ອັບໂຫຼດຮູບການໂອນເງີນຄືນໃໝ່ແລ້ວ, Order ID: ${order.rows[0].order_code}`
+                : `ອັບໂຫຼດຮູບການໂອນເງີນໃໝ່ແລ້ວ, Order ID: ${order.rows[0].order_code} ຍອດລວມ ${order.rows[0].total} ກີບ`,
             orderid
         );
 
-        return success(res, { slip_url: slipUrl }, "Slip uploaded successfully. Awaiting verification");
+        return success(res, { slip_url: slipUrl }, "ອັບໂຫຼດຮູບການໂອນເງີນສຳເລັດແລ້ວ ກຳລັງລໍຖ້າການຢືນຢັນ");
     } catch (err) {
         return error(res, err.message);
     }
@@ -111,12 +111,12 @@ const verify = async (req, res) => {
         const { paymentid } = req.params;
 
         const payment = await client.query(`SELECT * FROM tbpayments WHERE paymentid = $1`, [paymentid]);
-        if (payment.rows.length === 0) return error(res, "No payment record found", 404);
+        if (payment.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນບັນທຶກການຈ່າຍເງິນ", 404);
 
         const orderid = payment.rows[0].orderid;
         const order = await client.query(`SELECT * FROM tborders WHERE orderid = $1`, [orderid]);
         if (order.rows[0].status !== 'ລໍຖ້າຢືນຢັນການຊຳລະ') {
-            return error(res, "This order is not in a pending confirmation status", 400);
+            return error(res, "ອໍເດີນີ້ບໍ່ໄດ້ຢູ່ໃນສະຖານະການຢືນຢັນທີ່ລໍຖ້າຢູ່", 400);
         }
 
         await client.query("BEGIN");
@@ -147,7 +147,7 @@ const verify = async (req, res) => {
             );
             await db.query(`UPDATE tborders SET status = 'ປະຕິເສດ' WHERE orderid = $1`, [orderid]);
 
-            return error(res, "Out of stock. Order automatically cancelled", 409);
+            return error(res, "ໝົດສະຕັອກ ການສັ່ງຊື້ຖືກຍົກເລີກໂດຍອັດຕະໂນມັດ", 409);
         }
 
         // อัปเดต order: ใส่ userid ของ Admin ที่ verify + status สำเร็จ
@@ -166,7 +166,7 @@ const verify = async (req, res) => {
 
         await logPaymentAction(paymentid, 'approved', 'admin', req.user.userid);
 
-        return success(res, null, "Payment approved successfully. Stock updated");
+        return success(res, null, "ການຈ່າຍເງິນໄດ້ຮັບການອະນຸມັດສຳເລັດແລ້ວ ອັບເດດສະຕັອກແລ້ວ");
     } catch (err) {
         await client.query("ROLLBACK");
         return error(res, err.message);
@@ -184,15 +184,15 @@ const reject = async (req, res) => {
         const { reason, action } = req.body;
 
         if (!reason || reason.trim() === "") {
-            return error(res, "Please enter a reason for reject", 400);
+            return error(res, "ກະລຸນາໃສ່ເຫດຜົນສຳລັບການປະຕິເສດ", 400);
         }
 
         if (!action || !['resubmit', 'cancel'].includes(action)) {
-            return error(res, "Please specify action: 'resubmit' or 'cancel'", 400);
+            return error(res, "ກະລຸນາລະບຸການກະທຳ: 'ສົ່ງຄືນໃໝ່' ຫຼື 'ຍົກເລີກ'", 400);
         }
 
         const payment = await db.query(`SELECT * FROM tbpayments WHERE paymentid = $1`, [paymentid]);
-        if (payment.rows.length === 0) return error(res, "No payment record found", 404);
+        if (payment.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນບັນທຶກການຈ່າຍເງິນ", 404);
 
         const orderid = payment.rows[0].orderid;
 
@@ -213,7 +213,7 @@ const reject = async (req, res) => {
 
         return success(
             res, null,
-            action === 'cancel' ? "Order has been cancelled permanently" : "Payment has been rejected, customer can resubmit"
+            action === 'cancel' ? "ອໍເດີຖືກຍົກເລີກຢ່າງຖາວອນແລ້ວ" : "ການຈ່າຍເງິນຖືກປະຕິເສດ ລູກຄ້າສາມາດສົ່ງໃໝ່ໄດ້"
         );
     } catch (err) {
         return error(res, err.message);

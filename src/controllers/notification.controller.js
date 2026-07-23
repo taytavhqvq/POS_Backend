@@ -32,8 +32,8 @@ const markRead = async (req, res) => {
         const result = await db.query(
             `UPDATE tbnotifications SET is_read = true WHERE notifid = $1 RETURNING *`, [id]
         );
-        if (result.rows.length === 0) return error(res, 'Notification not found', 404);
-        return success(res, result.rows[0], 'Notification read');
+        if (result.rows.length === 0) return error(res, 'ບໍ່ມີຂໍ້ມູນແຈ້ງເຕືອນ', 404);
+        return success(res, result.rows[0], 'ອ່ານແຈ້ງເຕືອນ');
     } catch (err) {
         return error(res, err.message);
     }
@@ -43,7 +43,7 @@ const markRead = async (req, res) => {
 const markAllRead = async (req, res) => {
     try {
         await db.query(`UPDATE tbnotifications SET is_read = true WHERE is_read = false`);
-        return success(res, null, 'All notifications read');
+        return success(res, null, 'ອ່ານແຈ້ງເຕືອນທັງໝົດ');
     } catch (err) {
         return error(res, err.message);
     }

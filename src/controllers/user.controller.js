@@ -20,7 +20,7 @@ const getOne = async (req, res) => {
             `SELECT userid, username, state FROM "user" WHERE userid = $1`,
             [id]
         );
-        if (result.rows.length === 0) return error(res, "Staff not found", 404);
+        if (result.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນພະນັກງານ", 404);
         return success(res, result.rows[0]);
     } catch (err) {
         return error(res, err.message);
@@ -31,8 +31,8 @@ const create = async (req, res) => {
     try {
         const { username, password } = req.body;
 
-        if (!username || username.trim() === "") return error(res, "Please provide username", 400);
-        if (!password || password.length < 6) return error(res, "Password must be at least 6 characters long", 400);
+        if (!username || username.trim() === "") return error(res, "ກະລຸນາປ້ອນຊື່ຜູ້ໃຊ້", 400);
+        if (!password || password.length < 6) return error(res, "ລະຫັດຜ່ານຕ້ອງມີຕົວອັກສອນຢ່າງໜ້ອຍ 6 ໂຕ", 400);
 
         const hashed = await bcrypt.hash(password, 10);
         const result = await db.query(
@@ -41,9 +41,9 @@ const create = async (req, res) => {
             [username, hashed]
         );
 
-        return success(res, result.rows[0], "Insert staff successful", 201);
+        return success(res, result.rows[0], "ເພີ້ມຂໍ້ມູນພະນັກງານສຳເລັດ", 201);
     } catch (err) {
-        if (err.code === "23505") return error(res, "This username already exists", 409);
+        if (err.code === "23505") return error(res, "ຊື່ຜູ້ໃຊ້ນີ້ມີໃນລະບົບແລ້ວ", 409);
         return error(res, err.message);
     }
 };
@@ -54,21 +54,21 @@ const update = async (req, res) => {
         const { username, password } = req.body; // ตัด state ออกจาก body
 
         if (parseInt(id) === req.user.userid) {
-            return error(res, 'Cannot edit your own information', 403);
+            return error(res, 'ບໍ່ສາມາດແກ້ໄຂຂໍ້ມູນຂອງຕົວເອງໄດ້', 403);
         }
 
-        if (!username || username.trim() === '') return error(res, 'กรุณาระบุ username', 400);
+        if (!username || username.trim() === '') return error(res, 'ກະລຸນາປ້ອນຊື່ຜູ້ໃຊ້', 400);
 
         // เช็คว่า user ที่จะแก้ไขเป็น Admin ไหม — ถ้าใช่ไม่อนุญาต (Admin ต้องแก้ผ่าน DB เท่านั้น)
         const target = await db.query(`SELECT state FROM "user" WHERE userid = $1`, [id]);
-        if (target.rows.length === 0) return error(res, 'Staff not found', 404);
+        if (target.rows.length === 0) return error(res, 'ບໍ່ມີຂໍ້ມູນພະນັກງານ', 404);
         if (target.rows[0].state === 'Admin') {
-            return error(res, 'Unable to edit Admin information', 403);
+            return error(res, 'ບໍ່ສາມາດແກ້ໄຂຂໍ້ມູນ Admin ໄດ້', 403);
         }
 
         let query, params;
         if (password) {
-            if (password.length < 6) return error(res, 'Password must be at least 6 characters long', 400);
+            if (password.length < 6) return error(res, 'ລະຫັດຜ່ານຕ້ອງມີຕົວອັກສອນຢ່າງໜ້ອຍ 6 ໂຕ', 400);
             const hashed = await bcrypt.hash(password, 10);
             query = `UPDATE "user" SET username=$1, password=$2 WHERE userid=$3 RETURNING userid, username, state`;
             params = [username, hashed, id];
@@ -78,9 +78,9 @@ const update = async (req, res) => {
         }
 
         const result = await db.query(query, params);
-        return success(res, result.rows[0], 'Update staff successful');
+        return success(res, result.rows[0], 'ແກ້ໄຂຂໍ້ມູນພະນັກງານສຳເລັດ');
     } catch (err) {
-        if (err.code === '23505') return error(res, 'This username already exists', 409);
+        if (err.code === '23505') return error(res, 'ຊື່ຜູ້ໃຊ້ນີ້ມີໃນລະບົບແລ້ວ', 409);
         return error(res, err.message);
     }
 };
@@ -90,18 +90,18 @@ const remove = async (req, res) => {
         const { id } = req.params;
 
         if (parseInt(id) === req.user.userid) {
-            return error(res, 'Cannot delete your own information', 403);
+            return error(res, 'ບໍ່ສາມາດລົບຂໍ້ມູນຂອງຕົວເອງໄດ້', 403);
         }
 
         const result = await db.query(
             `DELETE FROM "user" WHERE userid = $1 RETURNING userid`, [id]
         );
-        if (result.rows.length === 0) return error(res, "Staff not found", 404);
+        if (result.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນພະນັກງານ", 404);
 
-        return success(res, null, "Delete staff successful")
+        return success(res, null, "ລົບຂໍ້ມູນພະນັກງານສຳເລັດ")
     } catch (err) {
         if (err.code === '23503') {
-            return error(res, 'Cannot delete employee with existing transaction history', 409);
+            return error(res, 'ບໍ່ສາມາດລົບຂໍ້ມູນພະນັກງານທີ່ມີປະຫວັດການຂາຍໄດ້', 409);
         }
         return error(res, err.message);
     }

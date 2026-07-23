@@ -42,7 +42,7 @@ const checkExpiry = async (io) => {
             if (exists.rows.length === 0) {
                 await createNotification(
                 io, 'expired',
-                `Product "${batch.proname}" Lot ${batch.lot_name} has expired (${expiryDate})`,
+                `ສິນຄ້າ "${batch.proname}" Lot ${batch.lot_name} ໝົດອາຍຸ (${expiryDate})`,
                 batch.batchid
                 );
             }
@@ -76,7 +76,7 @@ const checkExpiry = async (io) => {
                 if (exists.rows.length === 0) {
                     await createNotification(
                         io, level.type,
-                        `Product "${batch.proname}" Lot ${batch.lot_name} expires in ${level.label} (${expiryDate})`,
+                        `ສິນຄ້າ "${batch.proname}" Lot ${batch.lot_name} ໝົດອາຍຸໃນ ${level.label} (${expiryDate})`,
                         batch.batchid
                     );
                 }
