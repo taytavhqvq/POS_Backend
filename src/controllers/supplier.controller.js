@@ -42,6 +42,9 @@ const create = async (req, res) => {
         );
         return success(res, result.rows[0], "ເພີ້ມຂໍ້ມູນຜູ້ສະໜອງສຳເລັດ", 201)
     } catch (err) {
+        if (err.code === "23505") {
+            return error(res, "ຜູ້ສະໜອງນີ້ມີໃນລະບົບແລ້ວ", 409);
+        }
         return error(res, err.message);
     }
 };
@@ -66,6 +69,9 @@ const update = async (req, res) => {
         if (result.rows.length === 0) return error(res, "ບໍ່ມີຂໍ້ມູນຜູ້ສະໜອງ", 404);
         return success(res, result.rows[0], "ແກ້ໄຂຂໍ້ມູນຜູ້ສະໜອງສຳເລັດ");
     } catch (err) {
+        if (err.code === "23505") {
+            return error(res, "ຜູ້ສະໜອງນີ້ມີໃນລະບົບແລ້ວ", 409); 
+        }
         return error(res, err.message);
     }
 };
