@@ -122,9 +122,9 @@ const create = async (req, res) => {
     } catch (err) {
         await client.query("ROLLBACK");   // ถ้า error ตรงไหน → ย้อนกลับทั้งหมด
 
-        if (err.code === "23505") {
-            return error(res, "Barcode ນີ້ມີໃນລະບົບແລ້ວ", 409);
-        }
+        // if (err.code === "23505") {
+        //     return error(res, "Barcode ນີ້ມີໃນລະບົບແລ້ວ", 409);
+        // }
         return error(res, err.message);
     } finally {
         client.release();    // คืน connection กลับ pool เสมอ
@@ -146,11 +146,63 @@ const update = async (req, res) => {
         const { id } = req.params;
         const { proname, catid, units } = req.body;
 
+        const imageUrl = req.file
+            ? `/uploads/products/${req.file.filename}`
+            : req.body.image_url || null;
+
         const sold = await hasBeenSold(id);
 
+        // if (sold) {
+        //     //client.release();
+        //     return error(res, "ສິນຄ້ານີ້ມີປະຫວັດການຂາຍແລ້ວ ແລະ ບໍ່ສາມາດແກ້ໄຂໄດ້", 403);
+        // }
         if (sold) {
-            //client.release();
-            return error(res, "ສິນຄ້ານີ້ມີປະຫວັດການຂາຍແລ້ວ ແລະ ບໍ່ສາມາດແກ້ໄຂໄດ້", 403);
+            // ข้อมูลสินค้าเดิม
+            const oldProduct = await client.query(
+                `SELECT catid
+                FROM tbproducts
+                WHERE proid=$1`,
+                [id]
+            );
+
+            // หน่วยเดิม
+            const oldUnits = await client.query(
+                `SELECT uid, barcode, qty_base
+                FROM tbproduct_units
+                WHERE proid=$1
+                ORDER BY uid`,
+                [id]
+            );
+
+            // 1. ห้ามเปลี่ยนหมวด
+            if (oldProduct.rows[0].catid != catid) {
+                return error(res,
+                    "ບໍ່ສາມາດແກ້ໄຂໝວດໝູ່ໄດ້",403);
+            }
+
+            // 2. ห้ามเพิ่ม/ลบหน่วย
+            if (units.length != oldUnits.rows.length) {
+                return error(res,
+                    "ບໍ່ສາມາດເພີ່ມ ຫຼື ລົບຫົວໜ່ວຍໄດ້",403);
+            }
+
+            // 3. ห้ามเปลี่ยน uid barcode qty_base
+            for(let i=0;i<units.length;i++){
+
+                const old = oldUnits.rows[i];
+                const now = units[i];
+
+                if(
+                    old.uid != now.uid ||
+                    old.barcode != now.barcode ||
+                    Number(old.qty_base) != Number(now.qty_base)
+                ){
+                    return error(res,
+                        "ບໍ່ສາມາດແກ້ໄຂຫົວໜ່ວຍ, Barcode ຫຼື ຈຳນວນຕໍ່ຫົວໜ່ວຍໄດ້",
+                        403
+                    );
+                }
+            }
         }
 
         await client.query('BEGIN');
@@ -181,7 +233,7 @@ const update = async (req, res) => {
         return success(res, result.rows[0], 'ແກ້ໄຂຂໍ້ມູນສິນຄ້າສຳເລັດ');
     } catch (err) {
         await client.query('ROLLBACK');
-        if (err.code === '23505') return error(res, 'Barcode ນີ້ມີໃນລະບົບແລ້ວ', 409);
+        // if (err.code === '23505') return error(res, 'Barcode ນີ້ມີໃນລະບົບແລ້ວ', 409);
         return error(res, err.message);
     } finally {
         client.release();
